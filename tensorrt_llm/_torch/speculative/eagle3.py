@@ -1,4 +1,3 @@
-import os
 from dataclasses import dataclass, field
 from itertools import chain
 from typing import Dict, List, Optional, Tuple
@@ -354,7 +353,10 @@ class Eagle3OneModelWorker(nn.Module):
             target_tokens = torch.argmax(logits, dim=-1)
         else:
             target_tokens = allreduce_argmax(
-                logits, all_reduce=self.all_reduce, padding=main_model_lm_head.padding_size, dim=-1)
+                logits,
+                all_reduce=self.all_reduce,
+                padding=main_model_lm_head.padding_size,
+                dim=-1)
 
         # context
         accepted_tokens[:num_contexts, 0] = target_tokens[:num_contexts]
@@ -397,7 +399,10 @@ class Eagle3OneModelWorker(nn.Module):
             draft_tokens = torch.argmax(logits, dim=-1).type(torch.int32)
         else:
             draft_tokens = allreduce_argmax(
-                logits, all_reduce=self.all_reduce, padding=draft_model.lm_head.padding_size, dim=-1).type(torch.int32)
+                logits,
+                all_reduce=self.all_reduce,
+                padding=draft_model.lm_head.padding_size,
+                dim=-1).type(torch.int32)
 
         # Apply d2t (offsets between draft model dictionary and main model dictionary).
         if hasattr(draft_model.model,

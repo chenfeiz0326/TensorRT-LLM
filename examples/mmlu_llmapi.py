@@ -228,10 +228,11 @@ def parse_args():
                         type=int,
                         default=1,
                         help="Tensor Parallel size (only for pytorch backend)")
-    parser.add_argument("--pp_size",
-                        type=int,
-                        default=1,
-                        help="Pipeline Parallel size (only for pytorch backend)")
+    parser.add_argument(
+        "--pp_size",
+        type=int,
+        default=1,
+        help="Pipeline Parallel size (only for pytorch backend)")
     parser.add_argument("--ep_size",
                         type=int,
                         default=1,

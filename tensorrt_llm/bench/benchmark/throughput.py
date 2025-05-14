@@ -197,7 +197,8 @@ from tensorrt_llm.sampling_params import SamplingParams
     "--scheduler_policy",
     type=click.Choice(["guaranteed_no_evict", "max_utilization"]),
     default="guaranteed_no_evict",
-    help="KV cache scheduler policy: guaranteed_no_evict prevents request eviction, max_utilization optimizes for throughput.",
+    help=
+    "KV cache scheduler policy: guaranteed_no_evict prevents request eviction, max_utilization optimizes for throughput.",
 )
 @click.pass_obj
 def throughput_command(

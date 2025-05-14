@@ -245,12 +245,13 @@ def initialize_dummy_weights(
     def _set_next_layer_layernorm(model):
         if not hasattr(model, 'layers'):
             return
-            
+
         for idx, layer in enumerate(model.layers):
             if idx == len(model.layers) - 1:
                 layer.next_layer_layernorm = model.norm
             else:
-                layer.next_layer_layernorm = model.layers[idx + 1].input_layernorm
+                layer.next_layer_layernorm = model.layers[idx +
+                                                          1].input_layernorm
 
     _set_next_layer_layernorm(model.model)
 
@@ -857,7 +858,8 @@ class PyTorchModelEngine(ModelEngine):
 
                 if self.spec_config is not None and self.spec_config.spec_dec_mode.need_load_draft_weights(
                 ):
-                    weights = load_weights(self.spec_config.draft_model_path, self.mapping)
+                    weights = load_weights(self.spec_config.draft_model_path,
+                                           self.mapping)
                     model.load_draft_weights(weights)
 
             elif load_format == LoadFormat.DUMMY:
