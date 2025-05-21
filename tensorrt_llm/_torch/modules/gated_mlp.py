@@ -73,8 +73,9 @@ class GatedMLP(nn.Module):
             weights_loading_config=WeightsLoadingConfig(
                 weight_mode=WeightMode.FUSED_GATE_UP_LINEAR),
             quant_config=config.get_quant_config(),
-            reduce_output=reduce_output,
-            skip_create_weights_in_init=config.skip_create_weights_in_init)
+            reduce_output=False,
+            skip_create_weights_in_init=config.skip_create_weights_in_init,
+        )
 
         self.down_lora = LoraLayer([LoraModuleType.MLP_4H_TO_H],
                                    [self.hidden_size])

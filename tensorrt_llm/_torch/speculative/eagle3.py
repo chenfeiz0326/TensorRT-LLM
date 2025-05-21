@@ -249,7 +249,7 @@ class Eagle3OneModelWorker(nn.Module):
         self.max_draft_tokens = self.spec_config.max_draft_tokens
         self.all_reduce = AllReduce(mapping=mapping)
 
-    @torch.compile(mode="max-autotune-no-cudagraphs")
+    # @torch.compile(mode="max-autotune-no-cudagraphs")
     def forward(self, input_ids, position_ids, hidden_states, logits,
                 attn_metadata, spec_metadata, draft_model, main_model_lm_head):
         batch_size = attn_metadata.num_seqs

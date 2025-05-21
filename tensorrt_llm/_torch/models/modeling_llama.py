@@ -160,10 +160,11 @@ class Llama4Linear(Linear):
         # Quantize the input if it is not already in float8_e4m3fn.
         # We cannot do this when enable_fused_gemm_swiglu is True and num_tokens > 16 because the default path
         # does not support FP8 input.
-        if self.has_fp8_qdq \
-            and input.dtype != torch.float8_e4m3fn \
-            and not (self.enable_fused_gemm_swiglu \
-                and get_num_tokens(input) > MIN_LATENCY_FC13_FUSED_GEMM_SWIGLU_NUM_TOKENS_TRTLLM_GEN):
+        # if self.has_fp8_qdq \
+        #     and input.dtype != torch.float8_e4m3fn \
+        #     and not (self.enable_fused_gemm_swiglu \
+        #         and get_num_tokens(input) > MIN_LATENCY_FC13_FUSED_GEMM_SWIGLU_NUM_TOKENS_TRTLLM_GEN):
+        if self.has_fp8_qdq and input.dtype != torch.float8_e4m3fn:
             input, _ = torch.ops.tensorrt_llm.static_quantize_e4m3_per_tensor(
                 input, self.input_scale)
 
@@ -255,10 +256,10 @@ class Llama4Linear(Linear):
                     low_latency_kernel=True,
                     gated_silu=True,
                 )
-            else:
-                raise ValueError(
-                    f"Gemm+SwiGLU cannot be fused when num_tokens > 16, got num_tokens = {get_num_tokens(input)}"
-                )
+            # else:
+            #     raise ValueError(
+            #         f"Gemm+SwiGLU cannot be fused when num_tokens > 16, got num_tokens = {get_num_tokens(input)}"
+            #     )
 
         # Otherwise, call the default apply_linear method.
         return super().apply_linear(input, weight, bias, lora_params, layer_idx)
@@ -352,7 +353,6 @@ class Llama4GatedMLP(GatedMLP):
         # Use the special or trtllm-gen gemm+swiglu kernel for FC13+swiglu when num_tokens <= 16.
         # We cannot use the parent's forward method because it applies swiglu() after calling gate_up_proj.
         if self.gate_up_proj.has_fp8_qdq \
-            and x.dtype == torch.float8_e4m3fn \
             and get_num_tokens(x) <= MIN_LATENCY_FC13_FUSED_GEMM_SWIGLU_NUM_TOKENS_TRTLLM_GEN \
             and lora_params is None:
             intermediate = self.gate_up_proj(x)
@@ -662,7 +662,10 @@ class Llama4FusedMoE(FusedMoE):
                 self.min_latency_quant_scales)
 
         # Default MoE implementation does not support FP8 input, so use high-precision one instead.
-        if x_high is not None and x.dtype == torch.float8_e4m3fn:
+        # if x_high is not None and x.dtype == torch.float8_e4m3fn:
+        #     x = x_high
+        if x.dtype == torch.float8_e4m3fn:
+            assert x_high is not None, f"Default MoE implementation must use bf16 hidden_states, num_tokens is {get_num_tokens(x)}"
             x = x_high
 
         return super().forward(x, router_logits, cutlass_min_latency_mode,
@@ -750,14 +753,16 @@ class Llama4MoE(nn.Module):
         # Use high precision hidden states for routing gemm if it is provided.
         hidden_states_routing = hidden_states_high if hidden_states_high is not None else hidden_states
         router_logits = self.router(hidden_states_routing)
-        routed_output = self.experts(hidden_states, router_logits,
-                                     cutlass_min_latency_mode,
-                                     hidden_states_high)
+        routed_output = self.experts(
+            x=hidden_states,
+            router_logits=router_logits,
+            cutlass_min_latency_mode=cutlass_min_latency_mode,
+            x_high=hidden_states_high)
         return routed_output
 
     def forward(
         self,
-        hidden_states: torch.Tensor,
+        hidden_states: Union[torch.Tensor, Fp4QuantizedTensor],
         all_rank_num_tokens=None,
         final_all_reduce_params: Optional[AllReduceParams] = None,
         cutlass_min_latency_mode: Optional[bool] = False,
@@ -765,7 +770,6 @@ class Llama4MoE(nn.Module):
         # different precisions for input hidden states.
         hidden_states_high: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-
         # Only enable multi-stream for cuda graph since switch stream has extra host overhead
         # This design is mainly for low latency use case. Need to improve for max throughput use case.
         fn0 = lambda: self.shared_expert(hidden_states)
