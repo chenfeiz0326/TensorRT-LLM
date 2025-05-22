@@ -328,17 +328,32 @@ def allreduce_argmax(
     local_argmax = local_argmax.squeeze(dim)
     local_max = local_max.squeeze(dim)
 
-    # Create a tensor to store both local argmax and local max, and then use allreduce to communicate across ranks.
-    # To reduce the number of transfers, we pack int32 as float32, hoping that adding 0.0f results in identical result.
-    # Since the vocab size is almost always <2^30, there should be no NaNs or infs that will mess up the argmax.
-    expanded_max = torch.zeros(2,
-                               *local_argmax.shape,
-                               tp_size,
-                               device=input.device,
-                               dtype=torch.float)
-    expanded_max[0, ..., tp_rank] = local_argmax.int().view(dtype=torch.float)
-    expanded_max[1, ..., tp_rank] = local_max
-    expanded_max = all_reduce(expanded_max)
+    @torch.compiler.disable(recursive=True)
+    def _allreduce_argmax_allgather() -> torch.Tensor:
+        """
+        Separate the part in allreduce_argmax that breaks torch.compile().
+        This part uses allreduce to perform allgather because the default allgather has poor performance with small
+        message sizes.
+        """
+
+        # Create a tensor to store both local argmax and local max, and then use allreduce to communicate across ranks.
+        # To reduce the number of transfers, we pack int32 as float32, hoping that adding 0.0f results in identical
+        # result. Since the vocab size is almost always <2^30, there should be no NaNs or infs that will mess up the
+        # argmax.
+        expanded_max = torch.zeros(2,
+                                   *local_argmax.shape,
+                                   tp_size,
+                                   device=input.device,
+                                   dtype=torch.float)
+        expanded_max[0, ...,
+                     tp_rank] = local_argmax.int().view(dtype=torch.float)
+        expanded_max[1, ..., tp_rank] = local_max
+        expanded_max = all_reduce(expanded_max)
+
+        return expanded_max
+
+    # Then, gather the local argmax and local max to all ranks.
+    expanded_max = _allreduce_argmax_allgather()
 
     # Finally, take argmax again to get the global argmax.
     argmax_rank = torch.argmax(expanded_max[1], dim=-1, keepdim=True)
