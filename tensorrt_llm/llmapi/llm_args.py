@@ -1719,7 +1719,16 @@ class TorchLlmArgs(BaseLlmArgs):
         2. If cuda_graph_batch_sizes is not provided, it is generated based on cuda_graph_max_batch_size
         3. If both are provided, cuda_graph_batch_sizes must match the generated values
         """
-        if self.cuda_graph_batch_sizes is not None:
+
+        if hasattr(
+                self, "pytorch_backend_config"
+        ) and self.pytorch_backend_config.cuda_graph_batch_sizes is not None:
+            self.cuda_graph_batch_sizes = sorted(
+                self.pytorch_backend_config.cuda_graph_batch_sizes)
+            if self.cuda_graph_max_batch_size == 0:
+                self.cuda_graph_max_batch_size = max(
+                    self.cuda_graph_batch_sizes)
+        elif self.cuda_graph_batch_sizes is not None:
             self.cuda_graph_batch_sizes = sorted(self.cuda_graph_batch_sizes)
             if self.cuda_graph_max_batch_size != 0:
                 if self.cuda_graph_batch_sizes != self._generate_cuda_graph_batch_sizes(
@@ -1740,6 +1749,9 @@ class TorchLlmArgs(BaseLlmArgs):
                 max_batch_size, self.cuda_graph_padding_enabled)
             self.cuda_graph_batch_sizes = generated_sizes
             self.cuda_graph_max_batch_size = max_batch_size
+
+        if hasattr(self, "pytorch_backend_config"):
+            self.enable_min_latency = self.pytorch_backend_config.enable_min_latency
 
         return self
 
