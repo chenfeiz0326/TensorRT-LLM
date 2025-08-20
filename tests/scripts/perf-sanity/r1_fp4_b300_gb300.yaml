@@ -1,0 +1,164 @@
+test_cases:
+  - id: 1
+    model: "R1-FP4"
+    gpus: 8
+    tp: 8
+    ep: 8
+    attn_backend: "TRTLLM"
+    moe_backend: "TRTLLM"
+    enable_attention_dp: false
+    free_gpu_mem_fraction: 0.8
+    max_batch_size: 512
+    isl: 1024
+    osl: 1024
+    max_num_tokens: 2176
+    moe_max_num_tokens: ""
+    concurrency_iterations:
+      - [8, 10]
+      - [16, 10]
+      - [32, 10]
+      - [64, 5]
+
+  - id: 2
+    model: "R1-FP4"
+    gpus: 8
+    tp: 8
+    ep: 8
+    attn_backend: "TRTLLM"
+    moe_backend: "CUTLASS"
+    enable_attention_dp: true
+    free_gpu_mem_fraction: 0.8
+    max_batch_size: 512
+    isl: 1024
+    osl: 1024
+    max_num_tokens: 2176
+    moe_max_num_tokens: 37376
+    concurrency_iterations:
+      - [32, 10]
+      - [64, 5]
+      - [128, 5]
+      - [256, 5]
+      - [512, 2]
+
+  - id: 3
+    model: "R1-FP4"
+    gpus: 8
+    tp: 8
+    ep: 8
+    attn_backend: "TRTLLM"
+    moe_backend: "TRTLLM"
+    enable_attention_dp: false
+    free_gpu_mem_fraction: 0.8
+    max_batch_size: 512
+    isl: 8192
+    osl: 1024
+    max_num_tokens: 9344
+    moe_max_num_tokens: ""
+    concurrency_iterations:
+      - [8, 10]
+      - [16, 10]
+      - [32, 10]
+      - [64, 5]
+
+  - id: 4
+    model: "R1-FP4"
+    gpus: 8
+    tp: 8
+    ep: 8
+    attn_backend: "TRTLLM"
+    moe_backend: "CUTLASS"
+    enable_attention_dp: true
+    free_gpu_mem_fraction: 0.8
+    max_batch_size: 512
+    isl: 8192
+    osl: 1024
+    max_num_tokens: 9344
+    moe_max_num_tokens: 9344
+    concurrency_iterations:
+      - [32, 10]
+      - [64, 5]
+      - [128, 5]
+      - [256, 5]
+      - [512, 2]
+
+  - id: 5
+    model: "R1-FP4"
+    gpus: 4
+    tp: 4
+    ep: 4
+    attn_backend: "TRTLLM"
+    moe_backend: "TRTLLM"
+    enable_attention_dp: false
+    free_gpu_mem_fraction: 0.8
+    max_batch_size: 512
+    isl: 1024
+    osl: 1024
+    max_num_tokens: 2176
+    moe_max_num_tokens: ""
+    concurrency_iterations:
+      - [8, 10]
+      - [16, 10]
+      - [32, 10]
+      - [64, 5]
+
+  - id: 6
+    model: "R1-FP4"
+    gpus: 4
+    tp: 4
+    ep: 4
+    attn_backend: "TRTLLM"
+    moe_backend: "CUTLASS"
+    enable_attention_dp: true
+    free_gpu_mem_fraction: 0.8
+    max_batch_size: 512
+    isl: 1024
+    osl: 1024
+    max_num_tokens: 2176
+    moe_max_num_tokens: 37376
+    concurrency_iterations:
+      - [32, 10]
+      - [64, 5]
+      - [128, 5]
+      - [256, 5]
+      - [512, 2]
+
+  - id: 7
+    model: "R1-FP4"
+    gpus: 4
+    tp: 4
+    ep: 4
+    attn_backend: "TRTLLM"
+    moe_backend: "TRTLLM"
+    enable_attention_dp: false
+    free_gpu_mem_fraction: 0.8
+    max_batch_size: 512
+    isl: 8192
+    osl: 1024
+    max_num_tokens: 9344
+    moe_max_num_tokens: ""
+    concurrency_iterations:
+      - [8, 10]
+      - [16, 10]
+      - [32, 10]
+      - [64, 5]
+
+  - id: 8
+    model: "R1-FP4"
+    gpus: 4
+    tp: 4
+    ep: 4
+    attn_backend: "TRTLLM"
+    moe_backend: "CUTLASS"
+    enable_attention_dp: true
+    free_gpu_mem_fraction: 0.8
+    max_batch_size: 512
+    isl: 8192
+    osl: 1024
+    max_num_tokens: 9344
+    moe_max_num_tokens: 9344
+    concurrency_iterations:
+      - [32, 10]
+      - [64, 5]
+      - [128, 5]
+      - [256, 5]
+      - [512, 2]

@@ -10,10 +10,11 @@ env && hostname && nvidia-smi
 
 DEFAULT_IMAGE="urm.nvidia.com/sw-tensorrt-docker/tensorrt-llm-staging/release:main-x86_64"
 IMAGE=${1:-$DEFAULT_IMAGE}
-bench_dir=${2:-$(pwd)}
-output_dir=${3:-$(pwd)}
-select_pattern=${4:-default}
-skip_pattern=${5:-default}
+config_file=${2:-$(pwd)}
+bench_dir=${3:-$(pwd)}
+output_dir=${4:-$(pwd)}
+select_pattern=${5:-default}
+skip_pattern=${6:-default}
 
 start_time=$(date '+%Y-%m-%d-%H:%M:%S')
 output_folder=${output_dir}/benchmark.run.${SLURM_JOB_ID}.${start_time}.${select_pattern}.${skip_pattern}
@@ -52,11 +53,12 @@ run_benchmark_and_parse() {
         ${IMAGE} \
         bash -c "
             echo 'Running benchmarks...'
-            python3 ${bench_dir}/run_benchmark_serve.py --output_folder ${output_folder} --config_file ${bench_dir}/benchmark_config.yaml --select ${select_pattern} --skip ${skip_pattern}
+            export LLM_MODELS_ROOT=/home/scratch.trt_llm_data/llm-models
+            python3 ${bench_dir}/run_benchmark_serve.py --output_folder ${output_folder} --config_file ${bench_dir}/${config_file} --select ${select_pattern} --skip ${skip_pattern}
 
             echo 'Benchmarks completed. Generating CSV report...'
             if [[ -f '${bench_dir}/parse_benchmark_results.py' ]]; then
-                python3 ${bench_dir}/parse_benchmark_results.py --config_file ${bench_dir}/benchmark_config.yaml --input_folder ${output_folder} --output_csv ${output_folder}.csv
+                python3 ${bench_dir}/parse_benchmark_results.py --config_file ${bench_dir}/${config_file} --input_folder ${output_folder} --output_csv ${output_folder}.csv
                 echo 'CSV report generated successfully'
             else
                 echo 'Warning: parse_benchmark_results.py not found'
