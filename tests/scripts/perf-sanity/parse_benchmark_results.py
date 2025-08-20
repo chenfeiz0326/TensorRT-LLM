@@ -113,31 +113,23 @@ def extract_config_from_log_content(log_file):
     return None
 
 
-def extract_metrics_from_log(log_file):
+def extract_and_update_metrics(log_file, test_case, metrics_dict):
     """
-    Extract Total Token throughput and User throughput from log file
+    Extract metrics from log file and update the metrics_dict
     """
-    total_throughput = ""
-    user_throughput = ""
-
     try:
         with open(log_file, 'r') as f:
             for line in f:
-                if "Total Token throughput (tok/s):" in line:
-                    parts = line.strip().split()
-                    if len(parts) >= 5:
-                        total_throughput = parts[4]
-                elif "User throughput (tok/s):" in line:
-                    parts = line.strip().split()
-                    if len(parts) >= 4:
-                        user_throughput = parts[3]
+                for metric_name, metric_header in metrics_dict.items():
+                    if metric_header in line:
+                        metric_value = line.strip().split()[-1]
+                        test_case[metric_name] = metric_value
+                        break
     except Exception as e:
         print(f"Warning: Could not read {log_file}: {e}")
 
-    return total_throughput, user_throughput
 
-
-def generate_all_test_cases(benchmark_config):
+def generate_all_test_cases(benchmark_config, metrics_dict):
     """
     Generate all test cases from benchmark_config.yaml including all concurrency iterations
     """
@@ -165,8 +157,8 @@ def generate_all_test_cases(benchmark_config):
             test_case_config = base_config.copy()
             test_case_config['concurrency'] = concurrency
             test_case_config['iterations'] = iterations
-            test_case_config['TPS/System'] = ""
-            test_case_config['TPS/User'] = ""
+            for metric_name, _ in metrics_dict.items():
+                test_case_config[metric_name] = ""
             all_test_cases.append(test_case_config)
 
     return all_test_cases
@@ -201,11 +193,11 @@ def match_log_to_test_case(log_config, test_case):
             and log_config['concurrency'] == test_case['concurrency'])
 
 
-def create_test_case_row(test_case):
+def create_test_case_row(test_case, metrics_dict):
     """
     Create a row for a test case with empty performance data
     """
-    return {
+    row = {
         'model_name': test_case['model_name'],
         'GPUs': test_case['gpus'],
         'TP': test_case['tp'],
@@ -221,9 +213,10 @@ def create_test_case_row(test_case):
         'moe_max_num_tokens': test_case['moe_max_num_tokens'],
         'Concurrency': test_case['concurrency'],
         'Iterations': test_case['iterations'],
-        'TPS/System': test_case['TPS/System'],
-        'TPS/User': test_case['TPS/User'],
     }
+    for metric_name, _ in metrics_dict.items():
+        row[metric_name] = test_case[metric_name]
+    return row
 
 
 def parse_benchmark_results(input_folder, output_csv, config_file):
@@ -255,8 +248,15 @@ def parse_benchmark_results(input_folder, output_csv, config_file):
         print(f"Error: Could not load {config_file}: {e}")
         return
 
+    # Metrics to extract from log file
+    metrics_dict = {
+        "TPS/System": "Total Token throughput (tok/s):",
+        "TPS/User": "User throughput (tok/s):",
+        "Benchmark Duration": "Benchmark duration (s):",
+    }
+
     # Generate all test cases from config
-    all_test_cases = generate_all_test_cases(benchmark_config)
+    all_test_cases = generate_all_test_cases(benchmark_config, metrics_dict)
     print(f"Generated {len(all_test_cases)} test cases from configuration")
 
     # Find all serve.*.log files
@@ -274,16 +274,12 @@ def parse_benchmark_results(input_folder, output_csv, config_file):
             print(f"  Skipped - could not parse configuration")
             continue
 
-        # Extract performance metrics
-        total_throughput, user_throughput = extract_metrics_from_log(log_file)
-
         # Find matching test case in table
         matched = False
         for test_case in all_test_cases:
             if match_log_to_test_case(log_config, test_case):
                 # Update performance data
-                test_case['TPS/System'] = total_throughput
-                test_case['TPS/User'] = user_throughput
+                extract_and_update_metrics(log_file, test_case, metrics_dict)
                 matched = True
                 matched_count += 1
                 break
@@ -297,7 +293,7 @@ def parse_benchmark_results(input_folder, output_csv, config_file):
 
     table_rows = []
     for test_case in all_test_cases:
-        row = create_test_case_row(test_case)
+        row = create_test_case_row(test_case, metrics_dict)
         table_rows.append(row)
 
     # Add empty rows between different test configurations

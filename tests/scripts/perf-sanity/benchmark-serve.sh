@@ -52,6 +52,7 @@ run_benchmark_and_parse() {
         ${IMAGE} \
         bash -c "
             echo 'Running benchmarks...'
+            export LLM_MODELS_ROOT=/home/scratch.trt_llm_data/llm-models
             python3 ${bench_dir}/run_benchmark_serve.py --output_folder ${output_folder} --config_file ${bench_dir}/benchmark_config.yaml --select ${select_pattern} --skip ${skip_pattern}
 
             echo 'Benchmarks completed. Generating CSV report...'
