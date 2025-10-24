@@ -260,6 +260,8 @@ class PerfServerClientBenchmarkCmds(NamedTuple):
             self.working_dir, f"trtllm-serve.{self.names[cmd_idx]}.log")
         client_file_path = os.path.join(
             self.working_dir, f"trtllm-benchmark.{self.names[cmd_idx]}.log")
+        print(f"[CF] server cmd: {self.server_cmds[cmd_idx]}")
+        print(f"[CF] client cmd: {self.client_cmds[cmd_idx]}")
         try:
             with (  # Start server process
                     open(server_file_path, 'w') as server_ctx,
@@ -270,9 +272,12 @@ class PerfServerClientBenchmarkCmds(NamedTuple):
                           shell=True) as server_proc):
                 self.wait_for_endpoint_ready(
                     "http://localhost:8000/v1/models",
-                    timeout=5400)  # 90 minutes for large models
+                    timeout=7200)  # 120 minutes for large models
                 output += subprocess.check_output(self.client_cmds[cmd_idx],
                                                   env=venv._new_env).decode()
+                # Write output to client file path
+                with open(client_file_path, 'w') as client_ctx:
+                    client_ctx.write(output)
         finally:
             server_proc.terminate()
             server_proc.wait()
@@ -421,6 +426,7 @@ class AbstractPerfScriptTestClass(abc.ABC):
 
     def run_ex(self,
                full_test_name: str,
+               metric_type: PerfMetricType,
                venv: Optional[PythonVenvRunnerImpl],
                gpu_clock_lock: GPUClockLock,
                session_data_writer: SessionDataWriter,
@@ -523,17 +529,22 @@ class AbstractPerfScriptTestClass(abc.ABC):
                 # Write results to output csv and/or yaml files.
                 self._write_result(full_test_name, session_data_writer,
                                    output_dir, outputs, original_test_name,
-                                   cmd_idx)
+                                   metric_type, cmd_idx)
 
         return outputs
 
     def _write_result(self, full_test_name: str,
                       session_data_writer: SessionDataWriter, output_dir: str,
                       outputs: Dict[int, str], original_test_name: str,
-                      cmd_idx: int) -> None:
+                      metric_type: PerfMetricType, cmd_idx: int) -> None:
         """
+        Store the test results in the _test_results.
         Write the test results and GPU monitoring data to the output csv and/or yaml files.
         """
+        # Store the test result
+        if cmd_idx not in self._test_results:
+            self._test_results[cmd_idx] = {}
+        self._test_results[cmd_idx][metric_type] = self._perf_result
 
         # Get GPU monitoring data
         self._gpu_monitor_data = self._gpu_clock_lock.get_state_data()
