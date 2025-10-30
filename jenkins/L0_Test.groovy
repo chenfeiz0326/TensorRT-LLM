@@ -945,6 +945,7 @@ def runLLMTestlistWithSbatch(pipeline, platform, testList, config=VANILLA_CONFIG
                     chmod +x $scriptRunNode
                     srun --kill-on-bad-exit=1 ${srunArgs.join(" ")} ${scriptRunNode}
                 """.replaceAll("(?m)^\\s*", "")
+                echo "scriptContent:\n${scriptContent}"
                 pipeline.writeFile(file: scriptLaunchPathLocal, text: scriptContent)
                 Utils.copyFileToRemoteHost(
                     pipeline,
@@ -976,6 +977,7 @@ def runLLMTestlistWithSbatch(pipeline, platform, testList, config=VANILLA_CONFIG
                         exit \$EXIT_CODE
                     fi
                 """.replaceAll("(?m)^\\s*", "").trim()
+                echo "scriptExec:\n${scriptExec}"
                 pipeline.writeFile(file: scriptExecPathLocal, text: scriptExec)
                 Utils.copyFileToRemoteHost(
                     pipeline,
