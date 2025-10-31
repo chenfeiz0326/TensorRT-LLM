@@ -260,8 +260,6 @@ class PerfServerClientBenchmarkCmds(NamedTuple):
             self.working_dir, f"trtllm-serve.{self.names[cmd_idx]}.log")
         client_file_path = os.path.join(
             self.working_dir, f"trtllm-benchmark.{self.names[cmd_idx]}.log")
-        print(f"[CF] server cmd: {self.server_cmds[cmd_idx]}")
-        print(f"[CF] client cmd: {self.client_cmds[cmd_idx]}")
         try:
             with (  # Start server process
                     open(server_file_path, 'w') as server_ctx,

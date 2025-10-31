@@ -29,10 +29,9 @@ from defs.trt_test_alternative import (is_linux, is_windows, print_info,
 
 from ..conftest import get_llm_root, llm_models_root, trt_environment
 from .open_search_db_utils import (add_id, get_history_data, get_job_info,
-                                   post_new_perf_data,
-                                   post_regressive_test_cases,
-                                   prepare_baseline_data,
-                                   prepare_regressive_test_cases)
+                                   post_new_perf_data, prepare_baseline_data,
+                                   prepare_regressive_test_cases,
+                                   print_regressive_test_cases)
 from .pytorch_model_config import get_model_yaml_config
 from .sampler_options_config import get_sampler_options_config
 from .utils import (AbstractPerfScriptTestClass, PerfBenchScriptTestCmds,
@@ -2094,14 +2093,13 @@ class MultiMetricPerfTest(AbstractPerfScriptTestClass):
                     new_data_dict[cmd_idx] = new_data
                     cmd_idx += 1
 
-            regressive_data_list = []
             # Get history data for each cmd_idx
             history_baseline_dict, history_data_dict = get_history_data(
                 new_data_dict)
             # Prepare regressive test cases
-            regressive_data_list.extend(
-                prepare_regressive_test_cases(history_baseline_dict,
-                                              new_data_dict))
+            regressive_data_list = prepare_regressive_test_cases(
+                history_baseline_dict, new_data_dict)
+
             if is_post_merge:
                 # Prepare new baseline data for post-merge
                 new_baseline_data_dict = prepare_baseline_data(
@@ -2112,10 +2110,11 @@ class MultiMetricPerfTest(AbstractPerfScriptTestClass):
 
             if self._config.upload_to_db:
                 # Upload the new perf data and baseline data to database
-                post_new_perf_data(new_baseline_data_dict, new_data_dict)
-            # Post regressive test cases to database
-            post_regressive_test_cases(regressive_data_list, is_post_merge,
-                                       self._config.upload_to_db)
+                post_new_perf_data(new_baseline_data_dict, new_data_dict,
+                                   regressive_data_list)
+
+            # Print regressive test cases
+            print_regressive_test_cases(regressive_data_list)
         else:
             return
 
@@ -2131,7 +2130,6 @@ class MultiMetricPerfTest(AbstractPerfScriptTestClass):
         """
         Generate all the metric configs for the current test.
         """
-
         metrics = []
         if self._config.runtime == "server-benchmark":
             cmd_idx = 0

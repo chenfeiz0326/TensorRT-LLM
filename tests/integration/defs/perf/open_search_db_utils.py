@@ -31,7 +31,6 @@ from jenkins.scripts.open_search_db import OpenSearchDB
 
 PROJECT_ROOT = "sandbox-temp-trtllm-ci-perf-v1"  # "sandbox-trtllm-ci-perf"
 TEST_INFO_PROJECT_NAME = f"{PROJECT_ROOT}-test_info"
-REGRESSION_PROJECT_NAME = f"{PROJECT_ROOT}-regression_info"
 
 # Server config fields to compare
 SERVER_FIELDS = [
@@ -164,10 +163,6 @@ def get_job_info():
         # Set trigger_mr_commit to commit
         trigger_mr_commit = commit
 
-    print_info(
-        f"host_node_name: {host_node_name}, build_id: {build_id}, build_url: {build_url}, job_name: {job_name}, job_id: {job_id}, job_url: {job_url}, branch: {branch}, commit: {commit}, is_post_merge: {is_post_merge}, is_pr_job: {is_pr_job}, trigger_mr_user: {trigger_mr_user}, trigger_mr_link: {trigger_mr_link}, trigger_mr_id: {trigger_mr_id}, trigger_mr_commit: {trigger_mr_commit}"
-    )
-
     return {
         "b_is_baseline": False,
         "b_is_valid": True,
@@ -190,6 +185,7 @@ def get_job_info():
         "s_trigger_mr_link": trigger_mr_link,
         "s_trigger_mr_id": trigger_mr_id,
         "s_trigger_mr_commit": trigger_mr_commit,
+        "b_is_regression": False,
     }
 
 
@@ -426,32 +422,11 @@ def prepare_regressive_test_cases(history_baseline_dict, new_data_dict):
 
             # Add regression info string
             regressive_data["s_regression_info"] = ", ".join(regressive_metrics)
+            regressive_data["b_is_regression"] = True
             add_id(regressive_data)
             regressive_data_list.append(regressive_data)
 
     return regressive_data_list
-
-
-def post_regressive_test_cases(regressive_data_list, is_post_merge,
-                               upload_to_db):
-    """
-    Print and upload regressive test cases to regression database
-    """
-    print_info(f"Found {len(regressive_data_list)} regressive test cases")
-    for data in regressive_data_list:
-        print_info(f"Regressive test case: {data}")
-    # Only upload post-merge regressive test cases to database.
-    if is_post_merge and upload_to_db and regressive_data_list:
-        try:
-            print_info(
-                f"Ready to post {len(regressive_data_list)} regressive test cases to {REGRESSION_PROJECT_NAME}"
-            )
-            OpenSearchDB.postToOpenSearchDB(regressive_data_list,
-                                            REGRESSION_PROJECT_NAME)
-        except Exception as e:
-            print_info(
-                f"Fail to post regressive test cases to {REGRESSION_PROJECT_NAME}, error: {e}"
-            )
 
 
 def prepare_baseline_data(history_baseline_dict, history_data_dict,
@@ -486,7 +461,8 @@ def prepare_baseline_data(history_baseline_dict, history_data_dict,
     return new_baseline_data_dict
 
 
-def post_new_perf_data(new_baseline_data_dict, new_data_dict):
+def post_new_perf_data(new_baseline_data_dict, new_data_dict,
+                       regressive_data_list):
     """
     Post new perf results and new baseline to database
     """
@@ -498,10 +474,21 @@ def post_new_perf_data(new_baseline_data_dict, new_data_dict):
             data_list.append(new_baseline_data_dict[cmd_idx])
         if cmd_idx in new_data_dict:
             data_list.append(new_data_dict[cmd_idx])
+    # Only post regressive test cases when post-merge.
+    if new_baseline_data_dict:
+        data_list.extend(regressive_data_list)
     try:
         print_info(
             f"Ready to post {len(data_list)} data to {TEST_INFO_PROJECT_NAME}")
         OpenSearchDB.postToOpenSearchDB(data_list, TEST_INFO_PROJECT_NAME)
     except Exception as e:
         print_info(f"Fail to post data to {TEST_INFO_PROJECT_NAME}, error: {e}")
-        return []
+
+
+def print_regressive_test_cases(regressive_data_list):
+    """
+    Print regressive test cases
+    """
+    print_info(f"Found {len(regressive_data_list)} regressive test cases")
+    for data in regressive_data_list:
+        print_info(f"Regressive test case: {data}")

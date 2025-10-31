@@ -208,7 +208,7 @@ class OpenSearchDB:
             try:
                 args = {
                     "url": url,
-                    "data": json_data,
+                    "data": json_data_dump,
                     "headers": headers,
                     "timeout": POST_TIMEOUT_SECONDS,
                 }
