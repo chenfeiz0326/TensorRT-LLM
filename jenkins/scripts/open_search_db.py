@@ -75,9 +75,6 @@ OPEN_SEARCH_DB_BASE_URL = os.getenv("OPEN_SEARCH_DB_BASE_URL", "")
 OPEN_SEARCH_DB_USERNAME = os.getenv("OPEN_SEARCH_DB_CREDENTIALS_USR", "")
 OPEN_SEARCH_DB_PASSWORD = os.getenv("OPEN_SEARCH_DB_CREDENTIALS_PSW", "")
 
-# Local pytest can set RUN_POC="true" to use poc database without setting username and password.
-RUN_POC = os.getenv("RUN_POC", "false").lower() == "true"
-
 
 class OpenSearchDB:
     logger = logging.getLogger(__name__)
@@ -178,8 +175,8 @@ class OpenSearchDB:
         if not OPEN_SEARCH_DB_BASE_URL:
             OpenSearchDB.logger.info("OPEN_SEARCH_DB_BASE_URL is not set")
             return False
-        if (not use_poc_db or not RUN_POC) and (not OPEN_SEARCH_DB_USERNAME
-                                                or not OPEN_SEARCH_DB_PASSWORD):
+        if not use_poc_db and (not OPEN_SEARCH_DB_USERNAME
+                               or not OPEN_SEARCH_DB_PASSWORD):
             OpenSearchDB.logger.info(
                 "OPEN_SEARCH_DB_USERNAME or OPEN_SEARCH_DB_PASSWORD is not set")
             return False
@@ -215,7 +212,7 @@ class OpenSearchDB:
                     "headers": headers,
                     "timeout": POST_TIMEOUT_SECONDS,
                 }
-                if not use_poc_db or not RUN_POC:
+                if not use_poc_db:
                     args["auth"] = HTTPProxyAuth(OPEN_SEARCH_DB_USERNAME,
                                                  OPEN_SEARCH_DB_PASSWORD)
                 res = requests.post(**args)

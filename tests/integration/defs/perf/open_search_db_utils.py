@@ -29,8 +29,9 @@ if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 from jenkins.scripts.open_search_db import OpenSearchDB
 
-PROJECT_ROOT = "sandbox-temp-3-perf-test"  # "sandbox-trtllm-perf-test"
-REGRESSION_PROJECT_NAME = f"{PROJECT_ROOT}-regressive-test-cases"
+PROJECT_ROOT = "sandbox-temp-trtllm-ci-perf-v1"  # "sandbox-trtllm-ci-perf"
+TEST_INFO_PROJECT_NAME = f"{PROJECT_ROOT}-test_info"
+REGRESSION_PROJECT_NAME = f"{PROJECT_ROOT}-regression_info"
 
 # Server config fields to compare
 SERVER_FIELDS = [
@@ -192,11 +193,10 @@ def get_job_info():
     }
 
 
-def query_history_data(gpu_type, model_name):
+def query_history_data():
     """
     Query post-merge data with specific gpu type and model name
     """
-    project_name = f"{PROJECT_ROOT}-{gpu_type}-{model_name}"
     # Query data from the last 14 days
     last_days = 14
     json_data = {
@@ -231,35 +231,39 @@ def query_history_data(gpu_type, model_name):
 
     data_list = []
     try:
-        res = OpenSearchDB.queryFromOpenSearchDB(json_data, project_name)
+        res = OpenSearchDB.queryFromOpenSearchDB(json_data,
+                                                 TEST_INFO_PROJECT_NAME)
         if res is None:
             # No response from database, return None
             print_info(
-                f"Fail to query from {project_name}, returned no response")
+                f"Fail to query from {TEST_INFO_PROJECT_NAME}, returned no response"
+            )
             return []
         else:
             payload = res.json().get("hits", {}).get("hits", [])
             if len(payload) == 0:
                 # No history data found in database, return empty list
                 print_info(
-                    f"Fail to query from {project_name}, returned no data")
+                    f"Fail to query from {TEST_INFO_PROJECT_NAME}, returned no data"
+                )
                 return []
             for hit in payload:
                 data_dict = hit.get("_source", {})
                 data_dict["_id"] = hit.get("_id", "")
                 if data_dict["_id"] == "":
                     print_info(
-                        f"Fail to query from {project_name}, returned data with no _id"
+                        f"Fail to query from {TEST_INFO_PROJECT_NAME}, returned data with no _id"
                     )
                     # Invalid data, return None
                     return []
                 data_list.append(data_dict)
             print_info(
-                f"Successfully query from {project_name}, queried {len(data_list)} entries"
+                f"Successfully query from {TEST_INFO_PROJECT_NAME}, queried {len(data_list)} entries"
             )
             return data_list
     except Exception as e:
-        print_info(f"Fail to query from {project_name}, returned error: {e}")
+        print_info(
+            f"Fail to query from {TEST_INFO_PROJECT_NAME}, returned error: {e}")
         return []
 
 
@@ -339,16 +343,17 @@ def calculate_best_perf_result(history_data_list, new_data):
     return best_metrics
 
 
-def get_history_data(new_data_dict, cmd_idxs, gpu_type, model_name):
+def get_history_data(new_data_dict):
     """
     Query history post-merge data for each cmd_idx
     """
     history_baseline_dict = {}
     history_data_dict = {}
+    cmd_idxs = new_data_dict.keys()
     for cmd_idx in cmd_idxs:
         history_data_dict[cmd_idx] = []
         history_baseline_dict[cmd_idx] = None
-    history_data_list = query_history_data(gpu_type, model_name)
+    history_data_list = query_history_data()
     if history_data_list:
         for history_data in history_data_list:
             for cmd_idx in cmd_idxs:
@@ -450,12 +455,13 @@ def post_regressive_test_cases(regressive_data_list, is_post_merge,
 
 
 def prepare_baseline_data(history_baseline_dict, history_data_dict,
-                          new_data_dict, cmd_idxs):
+                          new_data_dict):
     """
     Calculate new baseline from history post-merge data and new data.
     Then return new baseline data.
     """
     new_baseline_data_dict = {}
+    cmd_idxs = new_data_dict.keys()
     # Find the best history post-merge data for each cmd
     for cmd_idx in cmd_idxs:
         # Calculate best metrics from history post-merge data and new data
@@ -480,23 +486,22 @@ def prepare_baseline_data(history_baseline_dict, history_data_dict,
     return new_baseline_data_dict
 
 
-def post_new_perf_data(new_baseline_data_dict, new_data_dict, cmd_idxs,
-                       gpu_type, model_name):
+def post_new_perf_data(new_baseline_data_dict, new_data_dict):
     """
     Post new perf results and new baseline to database
     """
-    project_name = f"{PROJECT_ROOT}-{gpu_type}-{model_name}"
     data_list = []
+    cmd_idxs = new_data_dict.keys()
     for cmd_idx in cmd_idxs:
         # Only upload baseline data when post-merge.
         if new_baseline_data_dict and cmd_idx in new_baseline_data_dict:
             data_list.append(new_baseline_data_dict[cmd_idx])
         if cmd_idx in new_data_dict:
             data_list.append(new_data_dict[cmd_idx])
-
     try:
-        print_info(f"Ready to post {len(data_list)} data to {project_name}")
-        OpenSearchDB.postToOpenSearchDB(data_list, project_name)
+        print_info(
+            f"Ready to post {len(data_list)} data to {TEST_INFO_PROJECT_NAME}")
+        OpenSearchDB.postToOpenSearchDB(data_list, TEST_INFO_PROJECT_NAME)
     except Exception as e:
-        print_info(f"Fail to post data to {project_name}, error: {e}")
+        print_info(f"Fail to post data to {TEST_INFO_PROJECT_NAME}, error: {e}")
         return []

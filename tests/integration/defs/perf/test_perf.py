@@ -2094,40 +2094,25 @@ class MultiMetricPerfTest(AbstractPerfScriptTestClass):
                     new_data_dict[cmd_idx] = new_data
                     cmd_idx += 1
 
-            # Group new data by model name
-            model_to_cmd_idx_group = {}
-            for cmd_idx, new_data in new_data_dict.items():
-                model_name = new_data["s_model_name"]
-                if model_name not in model_to_cmd_idx_group:
-                    model_to_cmd_idx_group[model_name] = []
-                model_to_cmd_idx_group[model_name].append(cmd_idx)
-
             regressive_data_list = []
-            for model_name, cmd_idxs in model_to_cmd_idx_group.items():
-                # Get history data for each cmd_idx
-                history_baseline_dict, history_data_dict = get_history_data(
-                    new_data_dict, cmd_idxs, self._config.gpu_type, model_name)
+            # Get history data for each cmd_idx
+            history_baseline_dict, history_data_dict = get_history_data(
+                new_data_dict)
+            # Prepare regressive test cases
+            regressive_data_list.extend(
+                prepare_regressive_test_cases(history_baseline_dict,
+                                              new_data_dict))
+            if is_post_merge:
+                # Prepare new baseline data for post-merge
+                new_baseline_data_dict = prepare_baseline_data(
+                    history_baseline_dict, history_data_dict, new_data_dict)
+            else:
+                # Pre-merge does not need to upload baseline data
+                new_baseline_data_dict = None
 
-                # Prepare regressive test cases
-                regressive_data_list.extend(
-                    prepare_regressive_test_cases(history_baseline_dict,
-                                                  new_data_dict))
-
-                if is_post_merge:
-                    # Prepare new baseline data for post-merge
-                    new_baseline_data_dict = prepare_baseline_data(
-                        history_baseline_dict, history_data_dict, new_data_dict,
-                        cmd_idxs)
-                else:
-                    # Pre-merge does not need to upload baseline data
-                    new_baseline_data_dict = None
-
-                if self._config.upload_to_db:
-                    # Upload the new perf data and baseline data to database
-                    post_new_perf_data(new_baseline_data_dict, new_data_dict,
-                                       cmd_idxs, self._config.gpu_type,
-                                       model_name)
-
+            if self._config.upload_to_db:
+                # Upload the new perf data and baseline data to database
+                post_new_perf_data(new_baseline_data_dict, new_data_dict)
             # Post regressive test cases to database
             post_regressive_test_cases(regressive_data_list, is_post_merge,
                                        self._config.upload_to_db)
