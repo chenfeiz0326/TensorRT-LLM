@@ -874,6 +874,7 @@ def runLLMTestlistWithSbatch(pipeline, platform, testList, config=VANILLA_CONFIG
     // Create a unique suffix for the job name
     String customSuffix = "${env.BUILD_TAG}-${UUID.randomUUID().toString().replaceAll("-", "").substring(0, 6)}".toLowerCase()
     def jobUID = "${cluster.host}-multi_node_test-${customSuffix}"
+    def disaggMode = stageName.contains("Perf-Sanity-Disagg")
 
     Utils.exec(pipeline, script: "env | sort && pwd && ls -alh")
 
@@ -1051,16 +1052,14 @@ def runLLMTestlistWithSbatch(pipeline, platform, testList, config=VANILLA_CONFIG
                     "--container-mounts=$mounts",
                     "--container-env=NVIDIA_IMEX_CHANNELS"
                 ]
-                if(nodeCount > 1) {
-                    srunArgs.add("--mpi=pmi2")
-                }
 
                 def exemptionComment = ""
                 if (cluster.host.contains("oci-nrt") || cluster.host.contains("oci-hsg") || cluster.host.contains("lbd-lax")) {
                     exemptionComment = """--comment='{"OccupiedIdleGPUsJobReaper":{"exemptIdleTimeMins":"90","reason":"other","description":"Long data and model loading time and disaggregated serving tests"}}'"""
                 }
-                def scriptContent = """#!/bin/bash
-                    #SBATCH ${exemptionComment} --output=${outputPath}
+                def scriptLaunchPrefix = """#!/bin/bash
+                    #SBATCH ${exemptionComment}
+                    #SBATCH --output=${outputPath}
                     ${taskArgs.collect { "#SBATCH $it" }.join('\n')}
                     #SBATCH ${partition.additionalArgs}
                     ${(partition?.name && partition.name != "unspecified") ? "#SBATCH --partition=${partition.name}" : ""}
@@ -1084,10 +1083,44 @@ def runLLMTestlistWithSbatch(pipeline, platform, testList, config=VANILLA_CONFIG
                     echo "Env NVIDIA_VISIBLE_DEVICES: \$NVIDIA_VISIBLE_DEVICES"
 
                     ${srunPrologue}
-
-                    srun --kill-on-bad-exit=1 ${srunArgs.join(" ")} ${scriptRunPathNode}
                 """.replaceAll("(?m)^\\s*", "")
-                pipeline.writeFile(file: scriptLaunchPathLocal, text: scriptContent)
+
+                if (disaggMode) {
+                    def scriptLaunchPrefixPathLocal = Utils.createTempLocation(pipeline, "./slurm_launch_prefix.sh")
+                    def scriptLaunchSrunArgsPathLocal = Utils.createTempLocation(pipeline, "./slurm_srun_args.txt")
+                    def scriptLaunchDraftPathLocal = "${llmSrcLocal}/jenkins/scripts/perf/disaggregated/slurm_launch_draft.sh"
+                    def scriptSubmitLocalPath = "${llmSrcLocal}/jenkins/scripts/perf/disaggregated/submit.py"
+
+                    if(nodeCount > 1) {
+                        srunArgs.add("--mpi=pmix")
+                    }
+                    pipeline.writeFile(file: scriptLaunchPrefixPathLocal, text: scriptLaunchPrefix)
+                    pipeline.writeFile(file: scriptLaunchSrunArgsPathLocal, text: srunArgs.join(" "))
+                    Utils.exec(pipeline, script: "echo \"Script launch prefix: \" && cat ${scriptLaunchPrefixPathLocal}")
+                    Utils.exec(pipeline, script: "echo \"Srun args content: \" && cat ${scriptLaunchSrunArgsPathLocal}")
+                    sh """
+                        python3 ${scriptSubmitLocalPath} \\
+                        --run-ci \\
+                        --llm-src ${llmSrcLocal} \\
+                        --test-list ${testListPathLocal} \\
+                        --draft-launch-sh ${scriptLaunchDraftPathLocal} \\
+                        --launch-sh ${scriptLaunchPathLocal} \\
+                        --run-sh ${scriptRunPathNode} \\
+                        --script-prefix ${scriptLaunchPrefixPathLocal} \\
+                        --srun-args ${scriptLaunchSrunArgsPathLocal}
+                    """
+                } else {
+                    if(nodeCount > 1) {
+                        srunArgs.add("--mpi=pmi2")
+                    }
+                    def scriptContent = """
+                        ${scriptLaunchPrefix}
+
+                        srun --kill-on-bad-exit=1 ${srunArgs.join(" ")} ${scriptRunPathNode}
+                    """.replaceAll("(?m)^\\s*", "")
+                    pipeline.writeFile(file: scriptLaunchPathLocal, text: scriptContent)
+                }
+
                 Utils.exec(pipeline, script: "echo \"Script to trigger Slurm sbatch job: \" && cat ${scriptLaunchPathLocal}")
                 Utils.copyFileToRemoteHost(
                     pipeline,
@@ -2518,7 +2551,6 @@ def runLLMTestlistOnPlatformImpl(pipeline, platform, testList, config=VANILLA_CO
                 if (noRegularTests && noIsolateTests) {
                     error "No tests were executed for stage ${stageName}, please check the test list and test-db rendering result."
                 }
-
             }
         }
 
@@ -2537,7 +2569,7 @@ def runLLMTestlistOnPlatformImpl(pipeline, platform, testList, config=VANILLA_CO
             stage("Check perf result") {
                 def perfCheckResult = sh(
                     script: """
-                        python3 ${llmSrc}/tests/integration/defs/perf/sanity_perf_check.py \
+                    python3 ${llmSrc}/tests/integration/defs/perf/sanity_perf_check.py \
                         ${stageName}/perf_script_test_results.csv \
                         ${basePerfPath}
                     """,
@@ -2554,6 +2586,22 @@ def runLLMTestlistOnPlatformImpl(pipeline, platform, testList, config=VANILLA_CO
                     --files ${stageName}/perf_script_test_results.csv \
                     ${basePerfPath}
                 """
+            }
+        }
+
+        if (perfMode && stageName.contains("Perf-Sanity")) {
+            stage ("Check perf result") {
+                def perfCheckResult = sh(
+                    script: """
+                        python3 ${llmSrc}/tests/integration/defs/perf/perf_regression_check.py \
+                        ${WORKSPACE}/${stageName}
+                    """,
+                    returnStatus: true
+                )
+                // TODO: Enable this when perf regression check is stable
+                // if (perfCheckResult != 0) {
+                //     error "Performance regression detected and failing the build (exit code: ${perfCheckResult})"
+                // }
             }
         }
     }
@@ -2996,6 +3044,7 @@ def launchTestJobs(pipeline, testFilter)
         "GB200-8_GPUs-2_Nodes-PyTorch-Post-Merge-3": ["gb200-oci-trtllm", "l0_gb200_multi_nodes", 3, 3, 8, 2],
         // Perf sanity post merge test
         "GB200-8_GPUs-2_Nodes-PyTorch-Perf-Sanity-Post-Merge-1": ["gb200-oci-trtllm", "l0_gb200_multi_nodes_perf_sanity", 1, 1, 8, 2],
+        "GB200-8_GPUs-2_Nodes-PyTorch-Perf-Sanity-Disagg-Post-Merge-1": ["gb200-oci-trtllm", "l0_gb200_multi_nodes_disagg_perf_sanity", 1, 1, 8, 2],
     ]
     fullSet += multiNodesSBSAConfigs.keySet()
 

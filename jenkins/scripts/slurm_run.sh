@@ -39,6 +39,11 @@ if [ $SLURM_PROCID -eq 0 ]; then
     fi
 fi
 
+if [ -n "${DISAGG_SERVING_TYPE:-}" ]; then
+    install_lock_file="install_lock.lock.${SLURM_JOB_ID}.$(hostname).${DISAGG_SERVING_TYPE}"
+else
+    install_lock_file="install_lock.lock.${SLURM_JOB_ID}.$(hostname)"
+fi
 if [ $SLURM_LOCALID -eq 0 ]; then
     wget -nv $llmTarfile
     tar -zxf $tarName
@@ -54,9 +59,9 @@ if [ $SLURM_LOCALID -eq 0 ]; then
     gpuUuids=$(nvidia-smi -q | grep "GPU UUID" | awk '{print $4}' | tr '\n' ',' || true)
     hostNodeName="${HOST_NODE_NAME:-$(hostname -f || hostname)}"
     echo "HOST_NODE_NAME = $hostNodeName ; GPU_UUIDS = $gpuUuids ; STAGE_NAME = $stageName"
-    touch install_lock.lock
+    touch $install_lock_file
 else
-    while [ ! -f install_lock.lock ]; do
+    while [ ! -f $install_lock_file ]; do
         sleep 5
     done
 fi
@@ -125,4 +130,10 @@ if [ $SLURM_PROCID -eq 0 ] && [ "$perfMode" = "true" ] && [[ "$stageName" != *Pe
         --output_path $stageName/report.pdf \
         --files $stageName/perf_script_test_results.csv \
         $basePerfPath
+fi
+
+if [ $SLURM_PROCID -eq 0 ] && [ "$perfMode" = "true" ] && [[ "$stageName" == *Perf-Sanity* ]]; then
+    echo "Check Perf-Sanity Result"
+    python3 $llmSrcNode/tests/integration/defs/perf/perf_regression_check.py \
+        $jobWorkspace
 fi
