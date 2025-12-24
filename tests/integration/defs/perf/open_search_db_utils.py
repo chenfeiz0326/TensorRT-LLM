@@ -29,12 +29,11 @@ _project_root = os.path.abspath(
     os.path.join(os.path.dirname(__file__), '../../../..'))
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
-from jenkins.scripts.open_search_db import OpenSearchDB
+from jenkins.scripts.open_search_db import OpenSearchDB, PERF_SANITY_PROJECT_NAME
 
-PROJECT_ROOT = "sandbox-temp-trtllm-ci-perf-v1"  # "sandbox-trtllm-ci-perf"
-TEST_INFO_PROJECT_NAME = f"{PROJECT_ROOT}-test_info"
-PRE_MERGE_THRESHOLD = 0.1
-POST_MERGE_THRESHOLD = 0.05
+POC_PROJECT_NAME = "sandbox-temp-trtllm-ci-perf-v1-test_info"
+USE_POC_DB = os.environ.get("USE_POC_DB", "false").lower() == "true"
+TEST_INFO_PROJECT_NAME = POC_PROJECT_NAME if USE_POC_DB else PERF_SANITY_PROJECT_NAME
 
 # Metrics where larger is better
 MAXIMIZE_METRICS = [
@@ -431,23 +430,22 @@ def prepare_regressive_test_cases(history_baseline_dict, new_data_dict):
     Set it as regressive.
     """
     regressive_data_list = []
-    cmd_idxs = new_data_dict.keys()
     # Find regressive test cases
-    for cmd_idx in cmd_idxs:
+    for cmd_idx in new_data_dict:
         if history_baseline_dict[cmd_idx] is None:
             continue
 
-        baseline_data = history_baseline_dict[cmd_idx]
+        history_baseline = history_baseline_dict[cmd_idx]
         new_data = new_data_dict[cmd_idx]
         is_regressive = False
         regressive_metrics = []
 
         # Check MAXIMIZE_METRICS (new should be >= baseline * (1 - threshold))
         for metric in MAXIMIZE_METRICS:
-            if metric not in new_data or metric not in baseline_data:
+            if metric not in new_data or metric not in history_baseline:
                 continue
-            threshold = get_threshold(baseline_data, metric)
-            baseline_value = baseline_data[metric]
+            threshold = get_threshold(history_baseline, metric)
+            baseline_value = history_baseline[metric]
             new_value = new_data[metric]
             # Regressive if new_value < baseline_value * (1 - threshold)
             if new_value < baseline_value * (1 - threshold):
@@ -456,10 +454,10 @@ def prepare_regressive_test_cases(history_baseline_dict, new_data_dict):
 
         # Check MINIMIZE_METRICS (new should be <= baseline * (1 + threshold))
         for metric in MINIMIZE_METRICS:
-            if metric not in new_data or metric not in baseline_data:
+            if metric not in new_data or metric not in history_baseline:
                 continue
-            threshold = get_threshold(baseline_data, metric)
-            baseline_value = baseline_data[metric]
+            threshold = get_threshold(history_baseline, metric)
+            baseline_value = history_baseline[metric]
             new_value = new_data[metric]
             # Regressive if new_value > baseline_value * (1 + threshold)
             if new_value > baseline_value * (1 + threshold):
@@ -471,9 +469,9 @@ def prepare_regressive_test_cases(history_baseline_dict, new_data_dict):
             regressive_data = new_data.copy()
             # Add baseline values and thresholds for all metrics
             for metric in MAXIMIZE_METRICS + MINIMIZE_METRICS:
-                if metric in baseline_data:
+                if metric in history_baseline:
                     baseline_key = f"d_baseline_{metric[2:]}"
-                    regressive_data[baseline_key] = baseline_data[metric]
+                    regressive_data[baseline_key] = history_baseline[metric]
 
                     # Copy all threshold keys from baseline
                     metric_suffix = metric[2:]
@@ -482,8 +480,8 @@ def prepare_regressive_test_cases(history_baseline_dict, new_data_dict):
                             f"d_threshold_post_merge_{metric_suffix}",
                             f"d_threshold_pre_merge_{metric_suffix}"
                     ]:
-                        if threshold_key in baseline_data:
-                            regressive_data[threshold_key] = baseline_data[
+                        if threshold_key in history_baseline:
+                            regressive_data[threshold_key] = history_baseline[
                                 threshold_key]
 
             # Add regression info string
@@ -495,7 +493,15 @@ def prepare_regressive_test_cases(history_baseline_dict, new_data_dict):
     return regressive_data_list
 
 
-def prepare_baseline_data(history_data_dict, new_data_dict):
+def _is_valid_baseline(baseline_data):
+    """Check if baseline data is valid (non-empty dict)."""
+    if isinstance(baseline_data, dict) and len(baseline_data) > 0:
+        return True
+    return False
+
+
+def prepare_baseline_data(history_baseline_dict, history_data_dict,
+                          new_data_dict):
     """
     Calculate new baseline from history post-merge data and new data.
     Then return new baseline data.
@@ -507,18 +513,42 @@ def prepare_baseline_data(history_data_dict, new_data_dict):
         # Calculate best metrics from history post-merge data and new data
         best_metrics = calculate_best_perf_result(history_data_dict[cmd_idx],
                                                   new_data_dict[cmd_idx])
+
+        # Create new_baseline_data from new_data_dict and set b_is_baseline
         new_baseline_data = new_data_dict[cmd_idx].copy()
         new_baseline_data["b_is_baseline"] = True
-        # Add or update baseline metrics and thresholds
-        for metric, value in best_metrics.items():
-            new_baseline_data[metric] = value
+
+        # Initialize metric_threshold_dict with default thresholds for all metrics
+        metric_threshold_dict = {}
+        for metric in MAXIMIZE_METRICS + MINIMIZE_METRICS:
             metric_suffix = metric[2:]
             post_merge_key = f"d_threshold_post_merge_{metric_suffix}"
             pre_merge_key = f"d_threshold_pre_merge_{metric_suffix}"
-            new_baseline_data[post_merge_key] = new_baseline_data.get(
-                post_merge_key, POST_MERGE_THRESHOLD)
-            new_baseline_data[pre_merge_key] = new_baseline_data.get(
-                pre_merge_key, PRE_MERGE_THRESHOLD)
+            metric_threshold_dict[post_merge_key] = POST_MERGE_THRESHOLD
+            metric_threshold_dict[pre_merge_key] = PRE_MERGE_THRESHOLD
+
+        # If history baseline is valid, extract thresholds and update metric_threshold_dict
+        history_baseline = history_baseline_dict[cmd_idx]
+        if _is_valid_baseline(history_baseline):
+            for metric in MAXIMIZE_METRICS + MINIMIZE_METRICS:
+                metric_suffix = metric[2:]
+                post_merge_key = f"d_threshold_post_merge_{metric_suffix}"
+                pre_merge_key = f"d_threshold_pre_merge_{metric_suffix}"
+                if post_merge_key in history_baseline:
+                    metric_threshold_dict[post_merge_key] = history_baseline[
+                        post_merge_key]
+                if pre_merge_key in history_baseline:
+                    metric_threshold_dict[pre_merge_key] = history_baseline[
+                        pre_merge_key]
+
+        # Update new_baseline_data with best_metrics values
+        for metric, value in best_metrics.items():
+            new_baseline_data[metric] = value
+
+        # Add all thresholds to new_baseline_data
+        for threshold_key, threshold_value in metric_threshold_dict.items():
+            new_baseline_data[threshold_key] = threshold_value
+
         add_id(new_baseline_data)
         new_baseline_data_dict[cmd_idx] = new_baseline_data
 
