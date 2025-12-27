@@ -29,7 +29,8 @@ _project_root = os.path.abspath(
     os.path.join(os.path.dirname(__file__), '../../../..'))
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
-from jenkins.scripts.open_search_db import OpenSearchDB, PERF_SANITY_PROJECT_NAME
+from jenkins.scripts.open_search_db import (PERF_SANITY_PROJECT_NAME,
+                                            OpenSearchDB)
 
 POC_PROJECT_NAME = "sandbox-temp-trtllm-ci-perf-v1-test_info"
 USE_POC_DB = os.environ.get("USE_POC_DB", "false").lower() == "true"

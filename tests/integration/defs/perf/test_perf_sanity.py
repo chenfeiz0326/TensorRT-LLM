@@ -12,9 +12,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""
-TensorRT LLM perf sanity tests
-"""
+"""TensorRT LLM perf sanity tests."""
+
 import contextlib
 import copy
 import glob
@@ -29,17 +28,22 @@ from typing import Dict, List, NamedTuple, Tuple
 import pytest
 import requests
 import yaml
-from defs.trt_test_alternative import print_error, print_info, print_warning
 from test_common.http_utils import wait_for_endpoint_ready
 
+from defs.trt_test_alternative import print_error, print_info
 from tensorrt_llm._utils import get_free_port
 
 from ..conftest import get_llm_root, llm_models_root
-from .open_search_db_utils import (SCENARIO_MATCH_FIELDS, add_id,
-                                   get_history_data, get_job_info,
-                                   post_new_perf_data, prepare_baseline_data,
-                                   prepare_regressive_test_cases,
-                                   write_regressive_test_cases)
+from .open_search_db_utils import (
+    SCENARIO_MATCH_FIELDS,
+    add_id,
+    get_history_data,
+    get_job_info,
+    post_new_perf_data,
+    prepare_baseline_data,
+    prepare_regressive_test_cases,
+    write_regressive_test_cases,
+)
 from .utils import collect_and_clean_myelin_time
 
 # Model PATH of local dir synced from internal LLM models repo
@@ -64,38 +68,22 @@ DEFAULT_TIMEOUT = 7200
 # Regex patterns for parsing benchmark output metrics
 # Key is the metric name used in database (e.g., "mean_e2el", "seq_throughput")
 PERF_METRIC_LOG_QUERIES = {
-    "seq_throughput":
-    re.compile(r"Request throughput \(req\/s\):\s+(-?[\d\.]+)"),
-    "token_throughput":
-    re.compile(r"Output token throughput \(tok\/s\):\s+(-?[\d\.]+)"),
-    "total_token_throughput":
-    re.compile(r"Total Token throughput \(tok\/s\):\s+(-?[\d\.]+)"),
-    "user_throughput":
-    re.compile(r"User throughput \(tok\/s\):\s+(-?[\d\.]+)"),
-    "mean_ttft":
-    re.compile(r"Mean TTFT \(ms\):\s+(-?[\d\.]+)"),
-    "median_ttft":
-    re.compile(r"Median TTFT \(ms\):\s+(-?[\d\.]+)"),
-    "p99_ttft":
-    re.compile(r"P99 TTFT \(ms\):\s+(-?[\d\.]+)"),
-    "mean_itl":
-    re.compile(r"Mean ITL \(ms\):\s+(-?[\d\.]+)"),
-    "median_itl":
-    re.compile(r"Median ITL \(ms\):\s+(-?[\d\.]+)"),
-    "p99_itl":
-    re.compile(r"P99 ITL \(ms\):\s+(-?[\d\.]+)"),
-    "mean_tpot":
-    re.compile(r"Mean TPOT \(ms\):\s+(-?[\d\.]+)"),
-    "median_tpot":
-    re.compile(r"Median TPOT \(ms\):\s+(-?[\d\.]+)"),
-    "p99_tpot":
-    re.compile(r"P99 TPOT \(ms\):\s+(-?[\d\.]+)"),
-    "mean_e2el":
-    re.compile(r"Mean E2EL \(ms\):\s+(-?[\d\.]+)"),
-    "median_e2el":
-    re.compile(r"Median E2EL \(ms\):\s+(-?[\d\.]+)"),
-    "p99_e2el":
-    re.compile(r"P99 E2EL \(ms\):\s+(-?[\d\.]+)"),
+    "seq_throughput": re.compile(r"Request throughput \(req\/s\):\s+(-?[\d\.]+)"),
+    "token_throughput": re.compile(r"Output token throughput \(tok\/s\):\s+(-?[\d\.]+)"),
+    "total_token_throughput": re.compile(r"Total Token throughput \(tok\/s\):\s+(-?[\d\.]+)"),
+    "user_throughput": re.compile(r"User throughput \(tok\/s\):\s+(-?[\d\.]+)"),
+    "mean_ttft": re.compile(r"Mean TTFT \(ms\):\s+(-?[\d\.]+)"),
+    "median_ttft": re.compile(r"Median TTFT \(ms\):\s+(-?[\d\.]+)"),
+    "p99_ttft": re.compile(r"P99 TTFT \(ms\):\s+(-?[\d\.]+)"),
+    "mean_itl": re.compile(r"Mean ITL \(ms\):\s+(-?[\d\.]+)"),
+    "median_itl": re.compile(r"Median ITL \(ms\):\s+(-?[\d\.]+)"),
+    "p99_itl": re.compile(r"P99 ITL \(ms\):\s+(-?[\d\.]+)"),
+    "mean_tpot": re.compile(r"Mean TPOT \(ms\):\s+(-?[\d\.]+)"),
+    "median_tpot": re.compile(r"Median TPOT \(ms\):\s+(-?[\d\.]+)"),
+    "p99_tpot": re.compile(r"P99 TPOT \(ms\):\s+(-?[\d\.]+)"),
+    "mean_e2el": re.compile(r"Mean E2EL \(ms\):\s+(-?[\d\.]+)"),
+    "median_e2el": re.compile(r"Median E2EL \(ms\):\s+(-?[\d\.]+)"),
+    "p99_e2el": re.compile(r"P99 E2EL \(ms\):\s+(-?[\d\.]+)"),
 }
 
 
@@ -108,8 +96,7 @@ def get_model_dir(model_name: str) -> str:
 
 def get_dataset_path() -> str:
     """Get dataset path for benchmark."""
-    return os.path.join(llm_models_root(), "datasets",
-                        "ShareGPT_V3_unfiltered_cleaned_split.json")
+    return os.path.join(llm_models_root(), "datasets", "ShareGPT_V3_unfiltered_cleaned_split.json")
 
 
 def to_env_dict(env_vars: str) -> Dict[str, str]:
@@ -132,126 +119,112 @@ class ServerConfig:
 
     def __init__(self, server_config_data: dict, env_vars: str = ""):
         # Extract required fields
-        self.mode = server_config_data.get('mode', 'e2e')
-        self.concurrency = server_config_data.get('concurrency', 1)
-        self.name = server_config_data['name']
-        self.model_name = server_config_data['model_name']
+        self.mode = server_config_data.get("mode", "e2e")
+        self.concurrency = server_config_data.get("concurrency", 1)
+        self.name = server_config_data["name"]
+        self.model_name = server_config_data["model_name"]
         self.model_path = ""
         self.env_vars = env_vars
 
         # Extract optional fields with defaults
-        self.tp = server_config_data.get('tensor_parallel_size', 1)
-        self.ep = server_config_data.get('moe_expert_parallel_size', 1)
-        self.pp = server_config_data.get('pipeline_parallel_size', 1)
-        self.cp = server_config_data.get('context_parallel_size', 1)
-        self.gpus = server_config_data.get('gpus', self.tp * self.cp * self.pp)
-        self.gpus_per_node = server_config_data.get('gpus_per_node',
-                                                    0) or self.gpus
-        self.max_num_tokens = server_config_data.get('max_num_tokens', 2048)
-        self.max_batch_size = server_config_data.get('max_batch_size', 512)
-        self.max_seq_len = server_config_data.get('max_seq_len', 0)
-        self.disable_overlap_scheduler = server_config_data.get(
-            'disable_overlap_scheduler', False)
-        self.num_postprocess_workers = server_config_data.get(
-            'num_postprocess_workers', 0)
-        self.stream_interval = server_config_data.get('stream_interval', 10)
-        self.attn_backend = server_config_data.get('attn_backend', "TRTLLM")
-        self.enable_chunked_prefill = server_config_data.get(
-            'enable_chunked_prefill', False)
-        self.enable_attention_dp = server_config_data.get(
-            'enable_attention_dp', False)
-        self.trust_remote_code = server_config_data.get(
-            'trust_remote_code', False)
-        self.enable_lm_head_tp_in_adp = server_config_data.get(
-            'enable_lm_head_tp_in_adp', False)
+        self.tp = server_config_data.get("tensor_parallel_size", 1)
+        self.ep = server_config_data.get("moe_expert_parallel_size", 1)
+        self.pp = server_config_data.get("pipeline_parallel_size", 1)
+        self.cp = server_config_data.get("context_parallel_size", 1)
+        self.gpus = server_config_data.get("gpus", self.tp * self.cp * self.pp)
+        self.gpus_per_node = server_config_data.get("gpus_per_node", 0) or self.gpus
+        self.max_num_tokens = server_config_data.get("max_num_tokens", 2048)
+        self.max_batch_size = server_config_data.get("max_batch_size", 512)
+        self.max_seq_len = server_config_data.get("max_seq_len", 0)
+        self.disable_overlap_scheduler = server_config_data.get("disable_overlap_scheduler", False)
+        self.num_postprocess_workers = server_config_data.get("num_postprocess_workers", 0)
+        self.stream_interval = server_config_data.get("stream_interval", 10)
+        self.attn_backend = server_config_data.get("attn_backend", "TRTLLM")
+        self.enable_chunked_prefill = server_config_data.get("enable_chunked_prefill", False)
+        self.enable_attention_dp = server_config_data.get("enable_attention_dp", False)
+        self.trust_remote_code = server_config_data.get("trust_remote_code", False)
+        self.enable_lm_head_tp_in_adp = server_config_data.get("enable_lm_head_tp_in_adp", False)
 
         # attention_dp_config
-        attention_dp_config = server_config_data.get('attention_dp_config', {})
-        self.attention_dp_balance = attention_dp_config.get(
-            'enable_balance', False)
-        self.batching_wait_iters = attention_dp_config.get(
-            'batching_wait_iters', 0)
-        self.timeout_iters = attention_dp_config.get('timeout_iters', 60)
+        attention_dp_config = server_config_data.get("attention_dp_config", {})
+        self.attention_dp_balance = attention_dp_config.get("enable_balance", False)
+        self.batching_wait_iters = attention_dp_config.get("batching_wait_iters", 0)
+        self.timeout_iters = attention_dp_config.get("timeout_iters", 60)
 
         # moe_config
-        moe_config = server_config_data.get('moe_config', {})
-        self.moe_backend = moe_config.get('backend', "")
-        self.moe_max_num_tokens = moe_config.get('max_num_tokens', 0)
-        self.use_low_precision_moe_combine = moe_config.get(
-            'use_low_precision_moe_combine', False)
-        load_balancer_config = moe_config.get('load_balancer', {})
-        self.load_balancer_num_slots = load_balancer_config.get('num_slots', 0)
+        moe_config = server_config_data.get("moe_config", {})
+        self.moe_backend = moe_config.get("backend", "")
+        self.moe_max_num_tokens = moe_config.get("max_num_tokens", 0)
+        self.use_low_precision_moe_combine = moe_config.get("use_low_precision_moe_combine", False)
+        load_balancer_config = moe_config.get("load_balancer", {})
+        self.load_balancer_num_slots = load_balancer_config.get("num_slots", 0)
         self.load_balancer_layer_updates_per_iter = load_balancer_config.get(
-            'layer_updates_per_iter', 0)
+            "layer_updates_per_iter", 0
+        )
 
         # cuda_graph_config
-        cuda_graph_config = server_config_data.get('cuda_graph_config', {})
+        cuda_graph_config = server_config_data.get("cuda_graph_config", {})
         self.enable_cuda_graph = False
         if cuda_graph_config:
             self.enable_cuda_graph = True
-            self.enable_padding = cuda_graph_config.get('enable_padding', True)
-            self.cuda_graph_batch_sizes = cuda_graph_config.get(
-                'batch_sizes', [])
-            self.cuda_graph_max_batch_size = cuda_graph_config.get(
-                'max_batch_size', 0)
+            self.enable_padding = cuda_graph_config.get("enable_padding", True)
+            self.cuda_graph_batch_sizes = cuda_graph_config.get("batch_sizes", [])
+            self.cuda_graph_max_batch_size = cuda_graph_config.get("max_batch_size", 0)
         else:
             self.enable_padding = True
             self.cuda_graph_batch_sizes = []
             self.cuda_graph_max_batch_size = 0
 
         # kv_cache_config
-        kv_cache_config = server_config_data.get('kv_cache_config', {})
-        self.kv_cache_dtype = kv_cache_config.get('dtype', "fp8")
-        self.enable_block_reuse = kv_cache_config.get('enable_block_reuse',
-                                                      False)
-        self.free_gpu_memory_fraction = kv_cache_config.get(
-            'free_gpu_memory_fraction', 0.8)
+        kv_cache_config = server_config_data.get("kv_cache_config", {})
+        self.kv_cache_dtype = kv_cache_config.get("dtype", "fp8")
+        self.enable_block_reuse = kv_cache_config.get("enable_block_reuse", False)
+        self.free_gpu_memory_fraction = kv_cache_config.get("free_gpu_memory_fraction", 0.8)
 
         # cache_transceiver_config
-        cache_transceiver_config = server_config_data.get(
-            'cache_transceiver_config', {})
-        self.cache_transceiver_backend = cache_transceiver_config.get(
-            'backend', "")
+        cache_transceiver_config = server_config_data.get("cache_transceiver_config", {})
+        self.cache_transceiver_backend = cache_transceiver_config.get("backend", "")
         self.cache_transceiver_max_tokens_in_buffer = cache_transceiver_config.get(
-            'max_tokens_in_buffer', 0)
+            "max_tokens_in_buffer", 0
+        )
 
         # speculative_config
-        speculative_config = server_config_data.get('speculative_config', {})
-        self.spec_decoding_type = speculative_config.get('decoding_type', "")
-        self.num_nextn_predict_layers = speculative_config.get(
-            'num_nextn_predict_layers', 0)
-        eagle3_value = speculative_config.get('eagle3_layers_to_capture', [])
+        speculative_config = server_config_data.get("speculative_config", {})
+        self.spec_decoding_type = speculative_config.get("decoding_type", "")
+        self.num_nextn_predict_layers = speculative_config.get("num_nextn_predict_layers", 0)
+        eagle3_value = speculative_config.get("eagle3_layers_to_capture", [])
         if isinstance(eagle3_value, int):
             self.eagle3_layers_to_capture = [eagle3_value]
         elif isinstance(eagle3_value, list):
             self.eagle3_layers_to_capture = eagle3_value
         else:
             self.eagle3_layers_to_capture = []
-        self.max_draft_len = speculative_config.get('max_draft_len', 0)
-        self.speculative_model_dir = speculative_config.get(
-            'speculative_model_dir', "")
+        self.max_draft_len = speculative_config.get("max_draft_len", 0)
+        self.speculative_model_dir = speculative_config.get("speculative_model_dir", "")
 
         # match_mode: "config" (default) or "scenario"
-        self.match_mode = server_config_data.get('match_mode', "config")
+        self.match_mode = server_config_data.get("match_mode", "config")
 
         # Store filtered config for extra_llm_api_config
         exclude_keys = [
-            'mode', 'concurrency', 'name', 'model_name', 'gpus',
-            'gpus_per_node', 'client_configs'
+            "mode",
+            "concurrency",
+            "name",
+            "model_name",
+            "gpus",
+            "gpus_per_node",
+            "client_configs",
         ]
         self.extra_llm_api_config_data = {
-            k: v
-            for k, v in server_config_data.items() if k not in exclude_keys
+            k: v for k, v in server_config_data.items() if k not in exclude_keys
         }
 
-    def to_cmd(self,
-               output_dir: str,
-               numa_bind: bool = False,
-               disagg_serving_type: str = "") -> List[str]:
+    def to_cmd(
+        self, output_dir: str, numa_bind: bool = False, disagg_serving_type: str = ""
+    ) -> List[str]:
         """Generate server command."""
         model_dir = get_model_dir(self.model_name)
-        self.model_path = model_dir if os.path.exists(
-            model_dir) else self.model_name
+        self.model_path = model_dir if os.path.exists(model_dir) else self.model_name
         config_filename = f"extra-llm-api-config.{self.name}.yml"
         config_path = os.path.join(output_dir, config_filename)
 
@@ -260,8 +233,12 @@ class ServerConfig:
             numa_bind_cmd = ["numactl", "-m 0,1"]
 
         cmd = numa_bind_cmd + [
-            "trtllm-serve", self.model_path, "--backend", "pytorch", "--config",
-            config_path
+            "trtllm-serve",
+            self.model_path,
+            "--backend",
+            "pytorch",
+            "--config",
+            config_path,
         ]
         return cmd
 
@@ -302,98 +279,55 @@ class ServerConfig:
     def to_db_data(self) -> dict:
         """Convert ServerConfig to database data."""
         db_data = {
-            "s_mode":
-            self.mode,
-            "s_model_name":
-            self.model_name.lower(),
-            "l_gpus":
-            self.gpus,
-            "l_tp":
-            self.tp,
-            "l_ep":
-            self.ep,
-            "l_pp":
-            self.pp,
-            "l_cp":
-            self.cp,
-            "l_gpus_per_node":
-            self.gpus_per_node,
-            "l_max_num_tokens":
-            self.max_num_tokens,
-            "l_max_batch_size":
-            self.max_batch_size,
-            "l_max_seq_len":
-            self.max_seq_len,
-            "b_disable_overlap_scheduler":
-            self.disable_overlap_scheduler,
-            "l_num_postprocess_workers":
-            self.num_postprocess_workers,
-            "l_stream_interval":
-            self.stream_interval,
-            "s_attn_backend":
-            self.attn_backend,
-            "b_enable_chunked_prefill":
-            self.enable_chunked_prefill,
-            "b_enable_attention_dp":
-            self.enable_attention_dp,
-            "b_trust_remote_code":
-            self.trust_remote_code,
-            "b_enable_lm_head_tp_in_adp":
-            self.enable_lm_head_tp_in_adp,
+            "s_mode": self.mode,
+            "s_model_name": self.model_name.lower(),
+            "l_gpus": self.gpus,
+            "l_tp": self.tp,
+            "l_ep": self.ep,
+            "l_pp": self.pp,
+            "l_cp": self.cp,
+            "l_gpus_per_node": self.gpus_per_node,
+            "l_max_num_tokens": self.max_num_tokens,
+            "l_max_batch_size": self.max_batch_size,
+            "l_max_seq_len": self.max_seq_len,
+            "b_disable_overlap_scheduler": self.disable_overlap_scheduler,
+            "l_num_postprocess_workers": self.num_postprocess_workers,
+            "l_stream_interval": self.stream_interval,
+            "s_attn_backend": self.attn_backend,
+            "b_enable_chunked_prefill": self.enable_chunked_prefill,
+            "b_enable_attention_dp": self.enable_attention_dp,
+            "b_trust_remote_code": self.trust_remote_code,
+            "b_enable_lm_head_tp_in_adp": self.enable_lm_head_tp_in_adp,
             # attention_dp_config
-            "b_attention_dp_balance":
-            self.attention_dp_balance,
-            "l_batching_wait_iters":
-            self.batching_wait_iters,
-            "l_timeout_iters":
-            self.timeout_iters,
+            "b_attention_dp_balance": self.attention_dp_balance,
+            "l_batching_wait_iters": self.batching_wait_iters,
+            "l_timeout_iters": self.timeout_iters,
             # moe_config
-            "s_moe_backend":
-            self.moe_backend,
-            "l_moe_max_num_tokens":
-            self.moe_max_num_tokens,
-            "b_use_low_precision_moe_combine":
-            self.use_low_precision_moe_combine,
-            "l_load_balancer_num_slots":
-            self.load_balancer_num_slots,
-            "l_load_balancer_layer_updates_per_iter":
-            self.load_balancer_layer_updates_per_iter,
+            "s_moe_backend": self.moe_backend,
+            "l_moe_max_num_tokens": self.moe_max_num_tokens,
+            "b_use_low_precision_moe_combine": self.use_low_precision_moe_combine,
+            "l_load_balancer_num_slots": self.load_balancer_num_slots,
+            "l_load_balancer_layer_updates_per_iter": self.load_balancer_layer_updates_per_iter,
             # cuda_graph_config
-            "b_enable_cuda_graph":
-            self.enable_cuda_graph,
-            "b_enable_padding":
-            self.enable_padding,
-            "l_cuda_graph_max_batch_size":
-            self.cuda_graph_max_batch_size,
-            "s_cuda_graph_batch_sizes":
-            ",".join(map(str, self.cuda_graph_batch_sizes)),
+            "b_enable_cuda_graph": self.enable_cuda_graph,
+            "b_enable_padding": self.enable_padding,
+            "l_cuda_graph_max_batch_size": self.cuda_graph_max_batch_size,
+            "s_cuda_graph_batch_sizes": ",".join(map(str, self.cuda_graph_batch_sizes)),
             # kv_cache_config
-            "s_kv_cache_dtype":
-            self.kv_cache_dtype,
-            "b_enable_block_reuse":
-            self.enable_block_reuse,
-            "d_free_gpu_memory_fraction":
-            self.free_gpu_memory_fraction,
+            "s_kv_cache_dtype": self.kv_cache_dtype,
+            "b_enable_block_reuse": self.enable_block_reuse,
+            "d_free_gpu_memory_fraction": self.free_gpu_memory_fraction,
             # cache_transceiver_config
-            "s_cache_transceiver_backend":
-            self.cache_transceiver_backend,
-            "l_cache_transceiver_max_tokens_in_buffer":
-            self.cache_transceiver_max_tokens_in_buffer,
+            "s_cache_transceiver_backend": self.cache_transceiver_backend,
+            "l_cache_transceiver_max_tokens_in_buffer": self.cache_transceiver_max_tokens_in_buffer,
             # speculative_config
-            "s_spec_decoding_type":
-            self.spec_decoding_type,
-            "l_num_nextn_predict_layers":
-            self.num_nextn_predict_layers,
-            "s_eagle3_layers_to_capture":
-            ",".join(map(str, self.eagle3_layers_to_capture)),
-            "l_max_draft_len":
-            self.max_draft_len,
-            "s_speculative_model_dir":
-            self.speculative_model_dir,
-            "s_server_log_link":
-            "",
-            "s_server_env_var":
-            self.env_vars,
+            "s_spec_decoding_type": self.spec_decoding_type,
+            "l_num_nextn_predict_layers": self.num_nextn_predict_layers,
+            "s_eagle3_layers_to_capture": ",".join(map(str, self.eagle3_layers_to_capture)),
+            "l_max_draft_len": self.max_draft_len,
+            "s_speculative_model_dir": self.speculative_model_dir,
+            "s_server_log_link": "",
+            "s_server_env_var": self.env_vars,
         }
         return db_data
 
@@ -402,14 +336,15 @@ class ServerConfig:
         config_data = dict(self.extra_llm_api_config_data)
 
         # Handle speculative_model_dir path conversion
-        if 'speculative_config' in config_data and 'speculative_model_dir' in config_data[
-                'speculative_config']:
-            spec_model_dir = config_data['speculative_config'][
-                'speculative_model_dir']
+        if (
+            "speculative_config" in config_data
+            and "speculative_model_dir" in config_data["speculative_config"]
+        ):
+            spec_model_dir = config_data["speculative_config"]["speculative_model_dir"]
             if spec_model_dir:
-                config_data['speculative_config'][
-                    'speculative_model_dir'] = os.path.join(
-                        llm_models_root(), spec_model_dir)
+                config_data["speculative_config"]["speculative_model_dir"] = os.path.join(
+                    llm_models_root(), spec_model_dir
+                )
 
         return yaml.dump(config_data, default_flow_style=False, sort_keys=False)
 
@@ -417,30 +352,24 @@ class ServerConfig:
 class ClientConfig:
     """Configurations of benchmark client."""
 
-    def __init__(self,
-                 client_config_data: dict,
-                 model_name: str,
-                 env_vars: str = ""):
-        self.name = client_config_data.get('name', '')
+    def __init__(self, client_config_data: dict, model_name: str, env_vars: str = ""):
+        self.name = client_config_data.get("name", "")
         self.model_name = model_name
-        self.concurrency = client_config_data.get('concurrency', 1)
-        self.iterations = client_config_data.get('iterations', 1)
-        self.isl = client_config_data.get('isl', 1024)
-        self.osl = client_config_data.get('osl', 1024)
-        self.random_range_ratio = client_config_data.get(
-            'random_range_ratio', 0.0)
-        self.backend = client_config_data.get('backend', "openai")
-        self.use_chat_template = client_config_data.get(
-            'use_chat_template', False)
-        self.streaming = client_config_data.get('streaming', True)
+        self.concurrency = client_config_data.get("concurrency", 1)
+        self.iterations = client_config_data.get("iterations", 1)
+        self.isl = client_config_data.get("isl", 1024)
+        self.osl = client_config_data.get("osl", 1024)
+        self.random_range_ratio = client_config_data.get("random_range_ratio", 0.0)
+        self.backend = client_config_data.get("backend", "openai")
+        self.use_chat_template = client_config_data.get("use_chat_template", False)
+        self.streaming = client_config_data.get("streaming", True)
         self.model_path = ""
         self.env_vars = env_vars
 
     def to_cmd(self) -> List[str]:
         """Generate benchmark command."""
         model_dir = get_model_dir(self.model_name)
-        self.model_path = model_dir if os.path.exists(
-            model_dir) else self.model_name
+        self.model_path = model_dir if os.path.exists(model_dir) else self.model_name
         dataset_path = get_dataset_path()
         benchmark_cmd = [
             "python",
@@ -519,9 +448,17 @@ class ClientConfig:
 class DisaggConfig:
     """Configurations for disaggregated server."""
 
-    def __init__(self, disagg_serving_type: str, hostname: str, numa_bind: bool,
-                 timeout: int, mode: str, model_name: str, hardware: dict,
-                 server_env_var: str):
+    def __init__(
+        self,
+        disagg_serving_type: str,
+        hostname: str,
+        numa_bind: bool,
+        timeout: int,
+        mode: str,
+        model_name: str,
+        hardware: dict,
+        server_env_var: str,
+    ):
         self.disagg_serving_type = disagg_serving_type
         self.hostname = hostname
         self.numa_bind = numa_bind
@@ -530,12 +467,13 @@ class DisaggConfig:
         self.model_name = model_name
         self.hardware = hardware
         self.server_env_var = server_env_var
-        self.num_ctx_servers = hardware.get('num_ctx_servers', 0)
-        self.num_gen_servers = hardware.get('num_gen_servers', 0)
+        self.num_ctx_servers = hardware.get("num_ctx_servers", 0)
+        self.num_gen_servers = hardware.get("num_gen_servers", 0)
 
 
 class AggrTestCmds(NamedTuple):
     """Commands for aggregated server perf sanity tests."""
+
     server_cmds: List[List[str]]
     client_cmds: Dict[int, List[List[str]]]
     timeout: int
@@ -550,15 +488,12 @@ class AggrTestCmds(NamedTuple):
         try:
             server_hostname = "localhost"
             server_port = get_free_port()
-            server_cmd_with_port = add_host_port_to_cmd(server_cmd,
-                                                        server_hostname,
-                                                        server_port)
+            server_cmd_with_port = add_host_port_to_cmd(server_cmd, server_hostname, server_port)
 
-            server_file_path = os.path.join(self.output_dir,
-                                            f"trtllm-serve.{server_idx}.log")
+            server_file_path = os.path.join(self.output_dir, f"trtllm-serve.{server_idx}.log")
 
             print_info(f"Starting server. cmd is {server_cmd_with_port}")
-            with open(server_file_path, 'w') as server_ctx:
+            with open(server_file_path, "w") as server_ctx:
                 server_proc = subprocess.Popen(
                     server_cmd_with_port,
                     stdout=server_ctx,
@@ -567,18 +502,18 @@ class AggrTestCmds(NamedTuple):
                 )
 
             wait_for_endpoint_ready(
-                f"http://{server_hostname}:{server_port}/health",
-                timeout=self.timeout)
+                f"http://{server_hostname}:{server_port}/health", timeout=self.timeout
+            )
 
             # Run all clients for this server
-            for client_idx, client_cmd in enumerate(
-                    self.client_cmds[server_idx]):
+            for client_idx, client_cmd in enumerate(self.client_cmds[server_idx]):
                 client_file_path = os.path.join(
-                    self.output_dir,
-                    f"trtllm-benchmark.{server_idx}.{client_idx}.log")
+                    self.output_dir, f"trtllm-benchmark.{server_idx}.{client_idx}.log"
+                )
 
                 client_cmd_with_port = add_host_port_to_cmd(
-                    client_cmd, server_hostname, server_port)
+                    client_cmd, server_hostname, server_port
+                )
                 print_info(f"Starting client. cmd is {client_cmd_with_port}")
 
                 output = subprocess.check_output(
@@ -587,7 +522,7 @@ class AggrTestCmds(NamedTuple):
                     env=copy.deepcopy(os.environ),
                 ).decode()
 
-                with open(client_file_path, 'w') as client_ctx:
+                with open(client_file_path, "w") as client_ctx:
                     client_ctx.write(output)
 
                 outputs.append(output)
@@ -605,6 +540,7 @@ class AggrTestCmds(NamedTuple):
 
 class DisaggTestCmds(NamedTuple):
     """Commands for multi-node disaggregated server perf sanity tests."""
+
     server_cmds: List[Tuple[List[str], List[str], List[str]]]
     client_cmds: Dict[int, List[List[str]]]
     timeout: int
@@ -616,21 +552,17 @@ class DisaggTestCmds(NamedTuple):
 
     def _generate_hostname_file(self, server_idx: int, port: int):
         """Create hostname file for coordination."""
-        hostnames_dir = os.path.join(self.output_dir,
-                                     f"hostnames-{server_idx}")
+        hostnames_dir = os.path.join(self.output_dir, f"hostnames-{server_idx}")
         if not os.path.exists(hostnames_dir):
             os.makedirs(hostnames_dir, exist_ok=True)
         hostname_file = os.path.join(hostnames_dir, f"{self.disagg_serving_type}.txt")
-        with open(hostname_file, 'w') as f:
+        with open(hostname_file, "w") as f:
             f.write(f"{self.hostname}:{port}")
 
-    def _generate_disagg_server_config(self, server_idx: int,
-                                       disagg_server_port: int) -> str:
+    def _generate_disagg_server_config(self, server_idx: int, disagg_server_port: int) -> str:
         """Generate disagg server config from hostname files."""
-        print_info(
-            f"Generating disagg server config for server index {server_idx}")
-        hostnames_folder = os.path.join(self.output_dir,
-                                        f"hostnames-{server_idx}")
+        print_info(f"Generating disagg server config for server index {server_idx}")
+        hostnames_folder = os.path.join(self.output_dir, f"hostnames-{server_idx}")
         expected_count = self.num_ctx_servers + self.num_gen_servers
         start_time = time.time()
         hostnames = []
@@ -638,12 +570,12 @@ class DisaggTestCmds(NamedTuple):
         while True:
             elapsed_time = time.time() - start_time
             print_info(
-                f"Waiting for hostnames in {hostnames_folder}, elapsed time: {elapsed_time}s, current: {len(hostnames)}, expected: {expected_count}"
+                f"Waiting for hostnames in {hostnames_folder}, "
+                f"elapsed time: {elapsed_time}s, current: {len(hostnames)}, "
+                f"expected: {expected_count}"
             )
             if elapsed_time > self.timeout:
-                print_error(
-                    f"Time out. Hostnames files are not ready after {self.timeout}s"
-                )
+                print_error(f"Time out. Hostnames files are not ready after {self.timeout}s")
                 break
             time.sleep(10)
             if not os.path.exists(hostnames_folder):
@@ -652,16 +584,14 @@ class DisaggTestCmds(NamedTuple):
             if len(hostnames) >= expected_count:
                 break
 
-        print_info(
-            f"All hostnames found in {hostnames_folder} after elapsed time: {elapsed_time}s"
-        )
+        print_info(f"All hostnames found in {hostnames_folder} after elapsed time: {elapsed_time}s")
 
         # Read ctx and gen hostnames
         ctx_hostnames = []
         gen_hostnames = []
         for hostname_file in hostnames:
             hostname_file_path = os.path.join(hostnames_folder, hostname_file)
-            with open(hostname_file_path, 'r') as f:
+            with open(hostname_file_path, "r") as f:
                 hostname_port = f.read().strip()
             if hostname_file.startswith("CTX"):
                 ctx_hostnames.append(hostname_port)
@@ -669,31 +599,27 @@ class DisaggTestCmds(NamedTuple):
                 gen_hostnames.append(hostname_port)
 
         server_config = {
-            'hostname': self.hostname,
-            'port': disagg_server_port,
-            'backend': 'pytorch',
-            'context_servers': {
-                'num_instances': self.num_ctx_servers,
-                'urls': ctx_hostnames,
+            "hostname": self.hostname,
+            "port": disagg_server_port,
+            "backend": "pytorch",
+            "context_servers": {
+                "num_instances": self.num_ctx_servers,
+                "urls": ctx_hostnames,
             },
-            'generation_servers': {
-                'num_instances': self.num_gen_servers,
-                'urls': gen_hostnames,
-            }
+            "generation_servers": {
+                "num_instances": self.num_gen_servers,
+                "urls": gen_hostnames,
+            },
         }
-        config_path = os.path.join(self.output_dir,
-                                   f"server_config.{server_idx}.yaml")
-        with open(config_path, 'w') as f:
+        config_path = os.path.join(self.output_dir, f"server_config.{server_idx}.yaml")
+        with open(config_path, "w") as f:
             yaml.dump(server_config, f)
         print_info(f"Server config file {config_path} generated")
         return config_path
 
-    def _get_disagg_server_hostname_and_port(self,
-                                             server_idx: int) -> Tuple[str,
-                                                                       int]:
+    def _get_disagg_server_hostname_and_port(self, server_idx: int) -> Tuple[str, int]:
         """Wait for and read disagg server config."""
-        config_path = os.path.join(self.output_dir,
-                                   f"server_config.{server_idx}.yaml")
+        config_path = os.path.join(self.output_dir, f"server_config.{server_idx}.yaml")
         start_time = time.time()
         while True:
             if os.path.exists(config_path):
@@ -701,18 +627,14 @@ class DisaggTestCmds(NamedTuple):
                 break
             elapsed_time = time.time() - start_time
             if elapsed_time > self.timeout:
-                print_error(
-                    f"Server config file {config_path} not found after {self.timeout}s"
-                )
+                print_error(f"Server config file {config_path} not found after {self.timeout}s")
                 break
-            print_info(
-                f"Waiting for server config file, elapsed time: {elapsed_time}s"
-            )
+            print_info(f"Waiting for server config file, elapsed time: {elapsed_time}s")
             time.sleep(10)
 
-        with open(config_path, 'r') as f:
+        with open(config_path, "r") as f:
             server_config = yaml.safe_load(f)
-        return server_config['hostname'], server_config['port']
+        return server_config["hostname"], server_config["port"]
 
     def wait_for_benchmark_ready(self, benchmark_status_file: str):
         """Wait for benchmark to complete."""
@@ -724,13 +646,9 @@ class DisaggTestCmds(NamedTuple):
                 )
                 break
             elapsed_time = time.time() - start_time
-            print_info(
-                f"Waiting for benchmark status file, elapsed time: {elapsed_time}s"
-            )
+            print_info(f"Waiting for benchmark status file, elapsed time: {elapsed_time}s")
             if elapsed_time > self.timeout:
-                print_error(
-                    f"Timeout waiting for benchmark status file after {self.timeout}s"
-                )
+                print_error(f"Timeout waiting for benchmark status file after {self.timeout}s")
                 break
             time.sleep(10)
 
@@ -744,23 +662,19 @@ class DisaggTestCmds(NamedTuple):
                     f"Timeout waiting for endpoint {url} to be ready after {self.timeout} seconds"
                 )
                 break
-            print_info(
-                f"Waiting for endpoint {url} to be ready, elapsed time: {elapsed_time}s"
-            )
+            print_info(f"Waiting for endpoint {url} to be ready, elapsed time: {elapsed_time}s")
             try:
                 time.sleep(10)
                 if requests.get(url).status_code == 200:
                     print_info(f"endpoint {url} is ready")
                     return
             except Exception as err:
-                print_info(
-                    f"endpoint {url} is not ready, with exception: {err}")
+                print_info(f"endpoint {url} is not ready, with exception: {err}")
 
     def run_cmd(self, server_idx: int) -> List[str]:
         """Run commands for a server and return outputs."""
         outputs = []
-        benchmark_status_file = os.path.join(
-            self.output_dir, f"benchmark_status.{server_idx}.txt")
+        benchmark_status_file = os.path.join(self.output_dir, f"benchmark_status.{server_idx}.txt")
         port = get_free_port()
 
         ctx_cmd, gen_cmd, disagg_cmd = self.server_cmds[server_idx]
@@ -768,8 +682,8 @@ class DisaggTestCmds(NamedTuple):
         if "CTX" in self.disagg_serving_type or "GEN" in self.disagg_serving_type:
             self._generate_hostname_file(server_idx, port)
             server_file_path = os.path.join(
-                self.output_dir,
-                f"trtllm-serve.{server_idx}.{self.disagg_serving_type}.log")
+                self.output_dir, f"trtllm-serve.{server_idx}.{self.disagg_serving_type}.log"
+            )
             is_ctx = "CTX" in self.disagg_serving_type
             server_cmd = ctx_cmd if is_ctx else gen_cmd
             server_cmd = add_host_port_to_cmd(server_cmd, self.hostname, port)
@@ -778,7 +692,7 @@ class DisaggTestCmds(NamedTuple):
                 print_info(
                     f"Starting server. disagg_serving_type: {self.disagg_serving_type} cmd is {server_cmd}"
                 )
-                with open(server_file_path, 'w') as server_ctx:
+                with open(server_file_path, "w") as server_ctx:
                     server_proc = subprocess.Popen(
                         server_cmd,
                         stdout=server_ctx,
@@ -793,14 +707,13 @@ class DisaggTestCmds(NamedTuple):
 
         elif self.disagg_serving_type == "DISAGG_SERVER":
             disagg_server_file_path = os.path.join(
-                self.output_dir,
-                f"trtllm-serve.{server_idx}.{self.disagg_serving_type}.log")
+                self.output_dir, f"trtllm-serve.{server_idx}.{self.disagg_serving_type}.log"
+            )
 
             try:
                 self._generate_disagg_server_config(server_idx, port)
-                print_info(
-                    f"Starting disagg server. cmd is {disagg_cmd}")
-                with open(disagg_server_file_path, 'w') as disagg_server_ctx:
+                print_info(f"Starting disagg server. cmd is {disagg_cmd}")
+                with open(disagg_server_file_path, "w") as disagg_server_ctx:
                     disagg_server_proc = subprocess.Popen(
                         disagg_cmd,
                         stdout=disagg_server_ctx,
@@ -815,43 +728,42 @@ class DisaggTestCmds(NamedTuple):
 
         elif self.disagg_serving_type == "BENCHMARK":
             try:
-                disagg_server_hostname, disagg_server_port = self._get_disagg_server_hostname_and_port(
-                    server_idx)
+                disagg_server_hostname, disagg_server_port = (
+                    self._get_disagg_server_hostname_and_port(server_idx)
+                )
                 self.wait_for_endpoint_ready(
                     f"http://{disagg_server_hostname}:{disagg_server_port}/health"
                 )
 
                 # Run all clients for this server
-                for client_idx, client_cmd in enumerate(
-                        self.client_cmds[server_idx]):
+                for client_idx, client_cmd in enumerate(self.client_cmds[server_idx]):
                     benchmark_file_path = os.path.join(
-                        self.output_dir,
-                        f"trtllm-benchmark.{server_idx}.{client_idx}.log")
+                        self.output_dir, f"trtllm-benchmark.{server_idx}.{client_idx}.log"
+                    )
 
                     client_cmd_with_port = add_host_port_to_cmd(
-                        client_cmd, disagg_server_hostname, disagg_server_port)
-                    print_info(
-                        f"Starting benchmark. cmd is {client_cmd_with_port}")
+                        client_cmd, disagg_server_hostname, disagg_server_port
+                    )
+                    print_info(f"Starting benchmark. cmd is {client_cmd_with_port}")
 
                     output = subprocess.check_output(
                         client_cmd_with_port,
                         env=copy.deepcopy(os.environ),
-                        stderr=subprocess.STDOUT).decode()
+                        stderr=subprocess.STDOUT,
+                    ).decode()
 
-                    with open(benchmark_file_path, 'w') as benchmark_ctx:
+                    with open(benchmark_file_path, "w") as benchmark_ctx:
                         benchmark_ctx.write(output)
                     outputs.append(output)
 
             finally:
-                with open(benchmark_status_file, 'w') as status_file:
+                with open(benchmark_status_file, "w") as status_file:
                     status_file.write("Done")
 
         return outputs
 
     def get_cmd_str(self, server_idx: int) -> List[str]:
-        return [
-            "multi-node disaggregated server tests, please check config files"
-        ]
+        return ["multi-node disaggregated server tests, please check config files"]
 
 
 def parse_select_pattern(select_pattern: str) -> List[int]:
@@ -892,9 +804,9 @@ class PerfSanityTestConfig:
 
         def get_gpu_type() -> str:
             try:
-                output = subprocess.check_output(["nvidia-smi", "-L"],
-                                                 stderr=subprocess.DEVNULL,
-                                                 text=True)
+                output = subprocess.check_output(
+                    ["nvidia-smi", "-L"], stderr=subprocess.DEVNULL, text=True
+                )
                 first_line = output.strip().split("\n")[0]
                 gpu_models = SUPPORTED_GPU_TYPE
                 for model in gpu_models:
@@ -902,8 +814,7 @@ class PerfSanityTestConfig:
                         if model.startswith("B") and not model.startswith("GB"):
                             return f"dgx_{model.lower()}"
                         return model.lower()
-            except (subprocess.CalledProcessError, FileNotFoundError,
-                    IndexError):
+            except (subprocess.CalledProcessError, FileNotFoundError, IndexError):
                 print_error("Failed to get GPU type")
             return ""
 
@@ -917,20 +828,26 @@ class PerfSanityTestConfig:
             self.runtime = "multi_node_disagg_server"
             self.config_dir = "tests/integration/defs/perf/disagg/test_configs/disagg/perf"
             config_base = "-".join(labels[1:])
-            self.config_file = f"{config_base}.yaml" if not config_base.endswith(
-                ".yaml") else config_base
+            self.config_file = (
+                f"{config_base}.yaml" if not config_base.endswith(".yaml") else config_base
+            )
             self.select_pattern = None
         else:
             # For aggr: aggr_upload-config_yml-0 or aggr_upload-config_yml-0-5
             self.runtime = "aggr_server"
             self.config_dir = "tests/scripts/perf-sanity"
             config_base = labels[1]
-            self.config_file = f"{config_base}.yaml" if config_base and not config_base.endswith(
-                ".yaml") else config_base
+            self.config_file = (
+                f"{config_base}.yaml"
+                if config_base and not config_base.endswith(".yaml")
+                else config_base
+            )
             # select_pattern can be "0" (single) or "0-5" (range)
             self.select_pattern = "-".join(labels[2:]) if len(labels) > 2 else None
-        
-        self.config_dir = os.getenv("TRTLLM_CONFIG_FOLDER", os.path.join(get_llm_root(), self.config_dir))
+
+        self.config_dir = os.getenv(
+            "TRTLLM_CONFIG_FOLDER", os.path.join(get_llm_root(), self.config_dir)
+        )
 
         # Initialize server configs
         self.server_configs: List = []
@@ -953,41 +870,47 @@ class PerfSanityTestConfig:
         else:
             selected_server_indices = None
 
-        with open(config_file_path, 'r') as f:
+        with open(config_file_path, "r") as f:
             config = yaml.safe_load(f)
 
-        metadata = config.get('metadata', {})
-        environment = config.get('environment', {})
-        hardware = config.get('hardware', {})
-        gpus_per_node = hardware.get('gpus_per_node', 0)
+        metadata = config.get("metadata", {})
+        environment = config.get("environment", {})
+        hardware = config.get("hardware", {})
+        gpus_per_node = hardware.get("gpus_per_node", 0)
 
-        model_name = metadata.get('model_name', '')
-        server_env_var = environment.get('server_env_var', '')
-        client_env_var = environment.get('client_env_var', '')
+        model_name = metadata.get("model_name", "")
+        server_env_var = environment.get("server_env_var", "")
+        client_env_var = environment.get("client_env_var", "")
 
         server_configs = []
         server_client_configs = {}
 
-        for server_idx, server_config_data in enumerate(config['server_configs']):
+        for server_idx, server_config_data in enumerate(config["server_configs"]):
             # Check if this server should be included based on selected_server_indices
-            if selected_server_indices is not None and (server_idx + 1) not in selected_server_indices:
+            if (
+                selected_server_indices is not None
+                and (server_idx + 1) not in selected_server_indices
+            ):
                 continue
 
-            server_config_data['model_name'] = model_name if 'model_name' not in server_config_data else server_config_data[
-                'model_name']
-            server_config_data['mode'] = 'e2e'
-            server_config_data['concurrency'] = -1
-            server_config_data['gpus_per_node'] = gpus_per_node
+            server_config_data["model_name"] = (
+                model_name
+                if "model_name" not in server_config_data
+                else server_config_data["model_name"]
+            )
+            server_config_data["mode"] = "e2e"
+            server_config_data["concurrency"] = -1
+            server_config_data["gpus_per_node"] = gpus_per_node
 
             server_config = ServerConfig(server_config_data, server_env_var)
             server_id = len(server_configs)
             server_configs.append(server_config)
 
             client_configs = []
-            for client_config_data in server_config_data['client_configs']:
-                client_config = ClientConfig(client_config_data,
-                                             server_config_data['model_name'],
-                                             client_env_var)
+            for client_config_data in server_config_data["client_configs"]:
+                client_config = ClientConfig(
+                    client_config_data, server_config_data["model_name"], client_env_var
+                )
                 client_configs.append(client_config)
 
             server_client_configs[server_id] = client_configs
@@ -999,32 +922,32 @@ class PerfSanityTestConfig:
         """Parse YAML config file for disaggregated server."""
         disagg_serving_type = os.environ.get("DISAGG_SERVING_TYPE", "BENCHMARK")
 
-        with open(config_file_path, 'r') as f:
+        with open(config_file_path, "r") as f:
             config = yaml.safe_load(f)
 
-        metadata = config.get('metadata', {})
-        hardware = config.get('hardware', {})
-        benchmark = config.get('benchmark', {})
-        environment = config.get('environment', {})
-        slurm_config = config.get('slurm', {})
-        worker_config = config.get('worker_config', {})
+        metadata = config.get("metadata", {})
+        hardware = config.get("hardware", {})
+        benchmark = config.get("benchmark", {})
+        environment = config.get("environment", {})
+        slurm_config = config.get("slurm", {})
+        worker_config = config.get("worker_config", {})
 
-        timeout = slurm_config.get('timeout', DEFAULT_TIMEOUT)
-        numa_bind = slurm_config.get('numa_bind', False)
-        gpus_per_node = hardware.get('gpus_per_node', 0)
-        model_name = metadata.get('model_name', '')
+        timeout = slurm_config.get("timeout", DEFAULT_TIMEOUT)
+        numa_bind = slurm_config.get("numa_bind", False)
+        gpus_per_node = hardware.get("gpus_per_node", 0)
+        model_name = metadata.get("model_name", "")
         assert model_name, "model_name is required in metadata section"
 
-        benchmark_mode = benchmark.get('mode', 'e2e')
+        benchmark_mode = benchmark.get("mode", "e2e")
         if "gen_only" in benchmark_mode:
-            hardware['num_ctx_servers'] = 0
+            hardware["num_ctx_servers"] = 0
 
-        worker_env_var = environment.get('worker_env_var', '')
-        server_env_var = environment.get('server_env_var', '')
-        client_env_var = environment.get('client_env_var', '')
+        worker_env_var = environment.get("worker_env_var", "")
+        server_env_var = environment.get("server_env_var", "")
+        client_env_var = environment.get("client_env_var", "")
 
         # Parse concurrency_list - can be string or list
-        concurrency_str = benchmark.get('concurrency_list', '1')
+        concurrency_str = benchmark.get("concurrency_list", "1")
         if isinstance(concurrency_str, str):
             concurrency_values = [int(x) for x in concurrency_str.split()]
         elif isinstance(concurrency_str, list):
@@ -1038,22 +961,22 @@ class PerfSanityTestConfig:
 
         # Create ctx server config
         ctx_server_config_data = {
-            'mode': benchmark_mode,
-            'concurrency': max(concurrency_values),
-            'name': 'ctx',
-            'model_name': model_name,
-            'gpus_per_node': gpus_per_node,
-            **worker_config.get('ctx', {})
+            "mode": benchmark_mode,
+            "concurrency": max(concurrency_values),
+            "name": "ctx",
+            "model_name": model_name,
+            "gpus_per_node": gpus_per_node,
+            **worker_config.get("ctx", {}),
         }
 
         # Create gen server config
         gen_server_config_data = {
-            'mode': benchmark_mode,
-            'concurrency': max(concurrency_values),
-            'name': 'gen',
-            'model_name': model_name,
-            'gpus_per_node': gpus_per_node,
-            **worker_config.get('gen', {})
+            "mode": benchmark_mode,
+            "concurrency": max(concurrency_values),
+            "name": "gen",
+            "model_name": model_name,
+            "gpus_per_node": gpus_per_node,
+            **worker_config.get("gen", {}),
         }
 
         ctx_server_config = ServerConfig(ctx_server_config_data, worker_env_var)
@@ -1072,33 +995,30 @@ class PerfSanityTestConfig:
         )
 
         # server_configs is a list with one element (tuple of ctx, gen, disagg config)
-        self.server_configs = [(ctx_server_config, gen_server_config,
-                                disagg_config)]
+        self.server_configs = [(ctx_server_config, gen_server_config, disagg_config)]
 
         # Create client configs for each concurrency value
         client_configs = []
         for concurrency in concurrency_values:
             client_config_data = {
-                'name': f'client_con{concurrency}',
-                'concurrency': concurrency,
-                'iterations': benchmark.get('multi_round', 1),
-                'isl': benchmark.get('input_length', 1024),
-                'osl': benchmark.get('output_length', 1024),
-                'random_range_ratio': benchmark.get('benchmark_ratio', 0.0),
-                'backend': 'openai',
-                'use_chat_template': False,
-                'streaming': benchmark.get('streaming', True),
+                "name": f"client_con{concurrency}",
+                "concurrency": concurrency,
+                "iterations": benchmark.get("multi_round", 1),
+                "isl": benchmark.get("input_length", 1024),
+                "osl": benchmark.get("output_length", 1024),
+                "random_range_ratio": benchmark.get("benchmark_ratio", 0.0),
+                "backend": "openai",
+                "use_chat_template": False,
+                "streaming": benchmark.get("streaming", True),
             }
-            client_config = ClientConfig(client_config_data, model_name,
-                                         client_env_var)
+            client_config = ClientConfig(client_config_data, model_name, client_env_var)
             client_configs.append(client_config)
 
         self.server_client_configs = {0: client_configs}
 
     def get_commands(self):
         """Get commands based on runtime."""
-        perf_sanity_output_dir = os.path.join(self._output_dir,
-                                              self._test_param_labels)
+        perf_sanity_output_dir = os.path.join(self._output_dir, self._test_param_labels)
         os.makedirs(perf_sanity_output_dir, exist_ok=True)
 
         if self.runtime == "aggr_server":
@@ -1119,7 +1039,7 @@ class PerfSanityTestConfig:
             config_content = server_config.generate_extra_llm_api_config()
             config_filename = f"extra-llm-api-config.{server_config.name}.yml"
             config_path = os.path.join(output_dir, config_filename)
-            with open(config_path, 'w') as f:
+            with open(config_path, "w") as f:
                 f.write(config_content)
 
             server_cmds.append(server_cmd)
@@ -1129,18 +1049,19 @@ class PerfSanityTestConfig:
                 client_cmd = client_config.to_cmd()
                 client_cmds[server_idx].append(client_cmd)
 
-        return AggrTestCmds(server_cmds=server_cmds,
-                            client_cmds=client_cmds,
-                            timeout=DEFAULT_TIMEOUT,
-                            output_dir=output_dir)
+        return AggrTestCmds(
+            server_cmds=server_cmds,
+            client_cmds=client_cmds,
+            timeout=DEFAULT_TIMEOUT,
+            output_dir=output_dir,
+        )
 
     def _get_disagg_commands(self, output_dir: str):
         """Get commands for disaggregated server."""
         server_cmds = []
         client_cmds = {}
 
-        for server_idx, (ctx_config, gen_config,
-                         disagg_config) in enumerate(self.server_configs):
+        for server_idx, (ctx_config, gen_config, disagg_config) in enumerate(self.server_configs):
             numa_bind = disagg_config.numa_bind
             timeout = disagg_config.timeout
             disagg_serving_type = disagg_config.disagg_serving_type
@@ -1149,26 +1070,28 @@ class PerfSanityTestConfig:
             ctx_cmd = ctx_config.to_cmd(output_dir, numa_bind, "CTX")
             if "CTX" in disagg_serving_type:
                 config_content = ctx_config.generate_extra_llm_api_config()
-                config_path = os.path.join(output_dir,
-                                           f"extra-llm-api-config.ctx.yml")
-                with open(config_path, 'w') as f:
+                config_path = os.path.join(output_dir, "extra-llm-api-config.ctx.yml")
+                with open(config_path, "w") as f:
                     f.write(config_content)
 
             # Generate gen server command
             gen_cmd = gen_config.to_cmd(output_dir, numa_bind, "GEN")
             if "GEN" in disagg_serving_type:
                 config_content = gen_config.generate_extra_llm_api_config()
-                config_path = os.path.join(output_dir,
-                                           f"extra-llm-api-config.gen.yml")
-                with open(config_path, 'w') as f:
+                config_path = os.path.join(output_dir, "extra-llm-api-config.gen.yml")
+                with open(config_path, "w") as f:
                     f.write(config_content)
 
             # Generate disagg server command
             disagg_cmd = [
-                "trtllm-serve", "disaggregated", "-c",
-                f"{output_dir}/server_config.{server_idx}.yaml", "-t",
-                str(timeout), "-r",
-                str(timeout)
+                "trtllm-serve",
+                "disaggregated",
+                "-c",
+                f"{output_dir}/server_config.{server_idx}.yaml",
+                "-t",
+                str(timeout),
+                "-r",
+                str(timeout),
             ]
 
             server_cmds.append((ctx_cmd, gen_cmd, disagg_cmd))
@@ -1188,7 +1111,8 @@ class PerfSanityTestConfig:
             disagg_serving_type=disagg_config.disagg_serving_type,
             num_ctx_servers=disagg_config.num_ctx_servers,
             num_gen_servers=disagg_config.num_gen_servers,
-            output_dir=output_dir)
+            output_dir=output_dir,
+        )
 
     def run_ex(self, commands) -> Dict[int, List[str]]:
         """Run commands and collect outputs."""
@@ -1215,8 +1139,7 @@ class PerfSanityTestConfig:
                 if isinstance(e, subprocess.CalledProcessError):
                     print_error("--- stdout ---")
                     if e.stdout:
-                        print_error(e.stdout.decode() if isinstance(
-                            e.stdout, bytes) else e.stdout)
+                        print_error(e.stdout.decode() if isinstance(e.stdout, bytes) else e.stdout)
                     print_error("--------------")
                 outputs[server_idx] = []
 
@@ -1228,13 +1151,11 @@ class PerfSanityTestConfig:
             return
 
         # Check for non-zero failed requests
-        failed_requests_match = re.search(r'Failed requests:\s+(\d+)', output)
+        failed_requests_match = re.search(r"Failed requests:\s+(\d+)", output)
         if failed_requests_match:
             failed_count = int(failed_requests_match.group(1))
             if failed_count > 0:
-                print_error(
-                    f"Benchmark output contains {failed_count} failed requests."
-                )
+                print_error(f"Benchmark output contains {failed_count} failed requests.")
                 raise Exception(f"Benchmark has {failed_count} failed requests")
 
         # Check for explicit failure markers
@@ -1252,9 +1173,7 @@ class PerfSanityTestConfig:
             for output in server_outputs:
                 metrics = {}
                 for metric_type, regex in PERF_METRIC_LOG_QUERIES.items():
-                    regex_matches = [
-                        regex.search(line) for line in output.split("\n")
-                    ]
+                    regex_matches = [regex.search(line) for line in output.split("\n")]
                     for match in regex_matches:
                         if match:
                             value = None
@@ -1275,7 +1194,6 @@ class PerfSanityTestConfig:
                 self._test_results[cmd_idx] = client_metrics
                 cmd_idx += 1
 
-
     def upload_test_results_to_database(self):
         """Upload test results and baseline to database."""
 
@@ -1288,10 +1206,7 @@ class PerfSanityTestConfig:
             return [add_prefix(key, prefix_name) for key in config_list]
 
         def add_dict_prefix(config_dict: dict, prefix_name: str) -> dict:
-            return {
-                add_prefix(key, prefix_name): value
-                for key, value in config_dict.items()
-            }
+            return {add_prefix(key, prefix_name): value for key, value in config_dict.items()}
 
         match_keys = []
 
@@ -1311,8 +1226,9 @@ class PerfSanityTestConfig:
 
                     # Skip if metrics missing
                     if cmd_idx not in self._test_results or not all(
-                            metric_name in self._test_results[cmd_idx]
-                            for metric_name in PERF_METRIC_LOG_QUERIES):
+                        metric_name in self._test_results[cmd_idx]
+                        for metric_name in PERF_METRIC_LOG_QUERIES
+                    ):
                         print_info(
                             f"Skipped posting command {cmd_idx}'s test results since some metrics are missing."
                         )
@@ -1320,9 +1236,9 @@ class PerfSanityTestConfig:
                         continue
 
                     new_data = {
-                        "s_runtime":
-                        "multi_node_aggr_server" if server_config.gpus
-                        != server_config.gpus_per_node else "aggr_server"
+                        "s_runtime": "multi_node_aggr_server"
+                        if server_config.gpus != server_config.gpus_per_node
+                        else "aggr_server"
                     }
                     new_data.update(job_config)
                     new_data.update(server_config_dict)
@@ -1330,8 +1246,7 @@ class PerfSanityTestConfig:
 
                     for metric_name in PERF_METRIC_LOG_QUERIES:
                         if metric_name in self._test_results[cmd_idx]:
-                            new_data[f"d_{metric_name}"] = \
-                                self._test_results[cmd_idx][metric_name]
+                            new_data[f"d_{metric_name}"] = self._test_results[cmd_idx][metric_name]
 
                     add_id(new_data)
                     new_data_dict[cmd_idx] = new_data
@@ -1356,13 +1271,15 @@ class PerfSanityTestConfig:
             new_data_dict = {}
             cmd_idx = 0
 
-            for server_idx, (ctx_config, gen_config,
-                             disagg_config) in enumerate(self.server_configs):
+            for server_idx, (ctx_config, gen_config, disagg_config) in enumerate(
+                self.server_configs
+            ):
                 for client_config in self.server_client_configs[server_idx]:
                     # Skip if metrics missing
                     if cmd_idx not in self._test_results or not all(
-                            metric_name in self._test_results[cmd_idx]
-                            for metric_name in PERF_METRIC_LOG_QUERIES):
+                        metric_name in self._test_results[cmd_idx]
+                        for metric_name in PERF_METRIC_LOG_QUERIES
+                    ):
                         print_info(
                             f"Skipped posting command {cmd_idx}'s test results since some metrics are missing."
                         )
@@ -1370,10 +1287,8 @@ class PerfSanityTestConfig:
                         continue
 
                     # Get server configs with prefixed keys
-                    ctx_server_config_dict = add_dict_prefix(
-                        ctx_config.to_db_data(), 'ctx')
-                    gen_server_config_dict = add_dict_prefix(
-                        gen_config.to_db_data(), 'gen')
+                    ctx_server_config_dict = add_dict_prefix(ctx_config.to_db_data(), "ctx")
+                    gen_server_config_dict = add_dict_prefix(gen_config.to_db_data(), "gen")
                     client_config_dict = client_config.to_db_data()
 
                     num_ctx_servers = disagg_config.num_ctx_servers
@@ -1384,7 +1299,7 @@ class PerfSanityTestConfig:
                         "s_benchmark_mode": disagg_config.mode,
                         "s_server_env_var": disagg_config.server_env_var,
                         "l_num_ctx_servers": num_ctx_servers,
-                        "l_num_gen_servers": num_gen_servers
+                        "l_num_gen_servers": num_gen_servers,
                     }
                     new_data.update(job_config)
 
@@ -1396,25 +1311,18 @@ class PerfSanityTestConfig:
 
                     for metric_name in PERF_METRIC_LOG_QUERIES:
                         if metric_name in self._test_results[cmd_idx]:
-                            new_data[f"d_{metric_name}"] = \
-                                self._test_results[cmd_idx][metric_name]
+                            new_data[f"d_{metric_name}"] = self._test_results[cmd_idx][metric_name]
 
                     add_id(new_data)
                     new_data_dict[cmd_idx] = new_data
                     cmd_idx += 1
 
                     if not match_keys:
-                        match_keys.extend([
-                            "s_runtime", "l_num_ctx_servers", "l_num_gen_servers"
-                        ])
+                        match_keys.extend(["s_runtime", "l_num_ctx_servers", "l_num_gen_servers"])
                         if num_ctx_servers > 0:
-                            match_keys.extend(
-                                add_list_prefix(ctx_config.to_match_keys(),
-                                                'ctx'))
+                            match_keys.extend(add_list_prefix(ctx_config.to_match_keys(), "ctx"))
                         if num_gen_servers > 0:
-                            match_keys.extend(
-                                add_list_prefix(gen_config.to_match_keys(),
-                                                'gen'))
+                            match_keys.extend(add_list_prefix(gen_config.to_match_keys(), "gen"))
                         match_keys.extend(client_config.to_match_keys())
         else:
             return
@@ -1425,29 +1333,27 @@ class PerfSanityTestConfig:
 
         # Get history data for each cmd_idx
         history_baseline_dict, history_data_dict = get_history_data(
-            new_data_dict, self.gpu_type, match_keys)
+            new_data_dict, self.gpu_type, match_keys
+        )
 
         # Prepare regressive test cases
-        regressive_data_list = prepare_regressive_test_cases(
-            history_baseline_dict, new_data_dict)
+        regressive_data_list = prepare_regressive_test_cases(history_baseline_dict, new_data_dict)
 
         if is_post_merge:
             # Prepare new baseline data for post-merge
             new_baseline_data_dict = prepare_baseline_data(
-                history_baseline_dict, history_data_dict, new_data_dict)
+                history_baseline_dict, history_data_dict, new_data_dict
+            )
         else:
             # Pre-merge does not need to upload baseline data
             new_baseline_data_dict = None
 
         if self.upload_to_db:
             # Upload the new perf data and baseline data to database
-            post_new_perf_data(new_baseline_data_dict, new_data_dict,
-                               regressive_data_list)
+            post_new_perf_data(new_baseline_data_dict, new_data_dict, regressive_data_list)
 
-        perf_result_output_dir = os.path.join(self._output_dir,
-                                              self._test_param_labels)
-        write_regressive_test_cases(regressive_data_list, new_data_dict,
-                                    perf_result_output_dir)
+        perf_result_output_dir = os.path.join(self._output_dir, self._test_param_labels)
+        write_regressive_test_cases(regressive_data_list, new_data_dict, perf_result_output_dir)
 
 
 # Perf sanity test case parameters
@@ -1461,10 +1367,10 @@ DISAGG_CONFIG_FOLDER = "tests/integration/defs/perf/disagg/test_configs/disagg/p
 def get_server_config_count(yaml_path: str) -> int:
     """Read a YAML file and return the number of server_configs."""
     try:
-        with open(yaml_path, 'r') as f:
+        with open(yaml_path, "r") as f:
             data = yaml.safe_load(f)
-        if data and 'server_configs' in data:
-            return len(data['server_configs'])
+        if data and "server_configs" in data:
+            return len(data["server_configs"])
     except Exception:
         pass
     return 0
@@ -1500,8 +1406,7 @@ def get_aggr_test_cases() -> List[str]:
             # Cases with range indices
             for start_idx in range(1, count + 1):
                 for end_idx in range(start_idx + 1, count + 1):
-                    test_cases.append(
-                        f"{test_type}-{config_yml}-{start_idx}-{end_idx}")
+                    test_cases.append(f"{test_type}-{config_yml}-{start_idx}-{end_idx}")
 
     return test_cases
 
@@ -1511,8 +1416,7 @@ def get_disagg_test_cases() -> List[str]:
     llm_root = get_llm_root()
     disagg_config_dir = os.path.join(llm_root, DISAGG_CONFIG_FOLDER)
     yaml_files = glob.glob(os.path.join(disagg_config_dir, "*.yaml"))
-    basenames = sorted(
-        [os.path.splitext(os.path.basename(f))[0] for f in yaml_files])
+    basenames = sorted([os.path.splitext(os.path.basename(f))[0] for f in yaml_files])
 
     test_cases = []
     for config_yml in basenames:
@@ -1527,10 +1431,15 @@ def get_disagg_test_cases() -> List[str]:
 #           {test_type}-{config_yml}-{start_idx}-{end_idx}
 # For disagg: {test_type}-{config_yml}
 PERF_SANITY_TEST_CASES = (
-    get_aggr_test_cases() + get_disagg_test_cases() + [
-        "aggr_upload-config", "disagg_upload-config",
-        "disagg_upload-config_3_nodes", "disagg_upload-config_6_nodes"
-    ])
+    get_aggr_test_cases()
+    + get_disagg_test_cases()
+    + [
+        "aggr_upload-config",
+        "disagg_upload-config",
+        "disagg_upload-config_3_nodes",
+        "disagg_upload-config_6_nodes",
+    ]
+)
 
 
 @pytest.mark.parametrize("perf_sanity_test_case", PERF_SANITY_TEST_CASES)
@@ -1561,5 +1470,3 @@ def test_e2e(output_dir, perf_sanity_test_case):
 
     # Upload results to database
     config.upload_test_results_to_database()
-
-    print_info("Perf sanity test completed.")
