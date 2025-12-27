@@ -1078,7 +1078,8 @@ def runLLMTestlistWithSbatch(pipeline, platform, testList, config=VANILLA_CONFIG
                 // Define environment variables to export
                 def envVarNames = [
                     'OPEN_SEARCH_DB_BASE_URL',
-                    'OPEN_SEARCH_DB_CREDENTIALS',
+                    'OPEN_SEARCH_DB_CREDENTIALS_USR',
+                    'OPEN_SEARCH_DB_CREDENTIALS_PSW',
                     'BUILD_ID',
                     'BUILD_URL',
                     'JOB_NAME',
@@ -1248,11 +1249,14 @@ def runLLMTestlistWithSbatch(pipeline, platform, testList, config=VANILLA_CONFIG
 
                 if (stageName.contains("PerfSanity")) {
                     stage("[${stageName}] Check perf result") {
+                        def perfCheckScript = """
+                            python3 ${llmSrcNode}/tests/integration/defs/perf/perf_regression_check.py ${WORKSPACE}/${stageName}
+                        """
                         def perfCheckResult = Utils.exec(
                             pipeline,
                             script: Utils.sshUserCmd(
                                 remote,
-                                "\"python3 ${llmSrc}/tests/integration/defs/perf/perf_regression_check.py ${WORKSPACE}/${stageName}\""
+                                perfCheckScript
                             ),
                             returnStatus: true
                         )
