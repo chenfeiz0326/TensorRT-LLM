@@ -1250,7 +1250,7 @@ def runLLMTestlistWithSbatch(pipeline, platform, testList, config=VANILLA_CONFIG
                 if (stageName.contains("PerfSanity")) {
                     stage("[${stageName}] Check perf result") {
                         def perfCheckScript = """
-                            python3 ${llmSrcNode}/tests/integration/defs/perf/perf_regression_check.py ${WORKSPACE}/${stageName}
+                            python3 ${llmSrcLocal}/tests/integration/defs/perf/perf_regression_check.py ${jobWorkspace}/${stageName}
                         """
                         def perfCheckResult = Utils.exec(
                             pipeline,
