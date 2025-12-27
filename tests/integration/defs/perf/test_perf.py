@@ -2618,7 +2618,7 @@ class MultiMetricPerfTest(AbstractPerfScriptTestClass):
         if is_post_merge:
             # Prepare new baseline data for post-merge
             new_baseline_data_dict = prepare_baseline_data(
-                history_data_dict, new_data_dict)
+                history_baseline_dict, history_data_dict, new_data_dict)
         else:
             # Pre-merge does not need to upload baseline data
             new_baseline_data_dict = None

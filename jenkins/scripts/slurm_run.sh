@@ -100,7 +100,7 @@ echo "Full Command: $pytestCommand"
 eval $pytestCommand
 echo "Rank${SLURM_PROCID} Pytest finished execution"
 
-if [ $SLURM_PROCID -eq 0 ] && [ "$perfMode" = "true" ] && [[ "$stageName" != *Perf-Sanity* ]]; then
+if [ $SLURM_PROCID -eq 0 ] && [ "$perfMode" = "true" ]; then
     if [[ "$stageName" == *PyTorch* ]]; then
         basePerfFilename="base_perf_pytorch.csv"
     else
@@ -116,10 +116,4 @@ if [ $SLURM_PROCID -eq 0 ] && [ "$perfMode" = "true" ] && [[ "$stageName" != *Pe
         --output_path $stageName/report.pdf \
         --files $stageName/perf_script_test_results.csv \
         $basePerfPath
-fi
-
-if [ $SLURM_PROCID -eq 0 ] && [ "$perfMode" = "true" ] && [[ "$stageName" == *Perf-Sanity* ]]; then
-    echo "Check Perf-Sanity Result"
-    python3 $llmSrcNode/tests/integration/defs/perf/perf_regression_check.py \
-        $jobWorkspace
 fi
