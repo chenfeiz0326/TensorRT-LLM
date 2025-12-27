@@ -887,6 +887,7 @@ def runLLMTestlistWithSbatch(pipeline, platform, testList, config=VANILLA_CONFIG
     // Create a unique suffix for the job name
     String customSuffix = "${env.BUILD_TAG}-${UUID.randomUUID().toString().replaceAll("-", "").substring(0, 6)}".toLowerCase()
     def jobUID = "${cluster.host}-multi_node_test-${customSuffix}"
+    def perfSanityMode = stageName.contains("PerfSanity")
     def disaggMode = stageName.contains("PerfSanity-Disagg")
     def setSegment = disaggMode
 
@@ -930,6 +931,8 @@ def runLLMTestlistWithSbatch(pipeline, platform, testList, config=VANILLA_CONFIG
             def scriptExecPathLocal = Utils.createTempLocation(pipeline, "./slurm_exec.sh")
             def scriptExecPathNode = "${jobWorkspace}/${jobUID}-slurm_exec.sh"
             def coverageConfigFile = "${jobWorkspace}/.coveragerc"
+            def perfCheckScriptLocal = "${llmSrcLocal}/tests/integration/defs/perf/perf_regression_check.py"
+            def perfCheckScriptNode = "${jobWorkspace}/${jobUID}-perf_regression_check.py"
 
             stage("[${stageName}] Initializing Test") {
                 // Create Job Workspace folder in Frontend Node
@@ -1003,6 +1006,16 @@ def runLLMTestlistWithSbatch(pipeline, platform, testList, config=VANILLA_CONFIG
                     "./.coveragerc",
                     coverageConfigFile
                 )
+
+                if (perfSanityMode) {
+                    Utils.copyFileToRemoteHost(
+                        pipeline,
+                        remote,
+                        perfCheckScriptLocal,
+                        perfCheckScriptNode,
+                        true
+                    )
+                }
 
                 // Generate Pytest command
                 String pytestUtil = ""
@@ -1247,16 +1260,13 @@ def runLLMTestlistWithSbatch(pipeline, platform, testList, config=VANILLA_CONFIG
                     numRetries: 3
                 )
 
-                if (stageName.contains("PerfSanity")) {
+                if (perfSanityMode) {
                     stage("[${stageName}] Check perf result") {
-                        def perfCheckScript = """
-                            python3 ${llmSrcLocal}/tests/integration/defs/perf/perf_regression_check.py ${jobWorkspace}/${stageName}
-                        """
                         def perfCheckResult = Utils.exec(
                             pipeline,
                             script: Utils.sshUserCmd(
                                 remote,
-                                perfCheckScript
+                                "python3 ${perfCheckScriptNode} ${jobWorkspace}/${stageName}"
                             ),
                             returnStatus: true
                         )
