@@ -1134,6 +1134,8 @@ def runLLMTestlistWithSbatch(pipeline, platform, testList, config=VANILLA_CONFIG
                     ${srunPrologue}
                 """.replaceAll("(?m)^\\s*", "")
 
+                srunArgs.removeAll { it == "--mpi=pmi2" || it == "--mpi=pmix" }
+
                 if (disaggMode) {
                     def scriptLaunchPrefixPathLocal = Utils.createTempLocation(pipeline, "./slurm_launch_prefix.sh")
                     def scriptLaunchSrunArgsPathLocal = Utils.createTempLocation(pipeline, "./slurm_srun_args.txt")
