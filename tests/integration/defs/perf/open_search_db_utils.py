@@ -74,20 +74,6 @@ REGRESSION_METRICS = [
 POST_MERGE_THRESHOLD = 0.05
 PRE_MERGE_THRESHOLD = 0.1
 
-# Fields for scenario-only matching for recipe tests.
-# Unlike regular tests that match on all config fields, recipes match only on the benchmark
-# scenario, allowing the underlying config to change while still comparing against baselines
-# for the same scenario.
-SCENARIO_MATCH_FIELDS = [
-    "s_gpu_type",
-    "s_runtime",
-    "s_model_name",
-    "l_isl",
-    "l_osl",
-    "l_concurrency",
-    "l_num_gpus",
-]
-
 
 def add_id(data):
     OpenSearchDB.add_id_of_json(data)
@@ -628,115 +614,89 @@ def _get_metric_keys():
     return metric_keys
 
 
-def generate_perf_yaml(new_data_dict, output_dir=None):
+def _print_regression_data(data, print_func=None):
     """
-    Save new perf data entries to perf_data.yaml for post-processing.
-
-    Each entry in the output list is a dict with:
-      - "new_data": the new perf data dict
+    Print regression info and config.
     """
-    all_entries = []
-    for cmd_idx, new_data in new_data_dict.items():
-        entry = {"new_data": new_data}
-        all_entries.append(entry)
+    if print_func is None:
+        print_func = print_info
 
-    if output_dir is not None and len(all_entries) > 0:
-        perf_data_file = os.path.join(output_dir, "perf_data.yaml")
-        with open(perf_data_file, 'w') as f:
-            yaml.dump(all_entries, f, default_flow_style=False)
+    if "s_regression_info" in data:
+        print_func("=== Regression Info ===")
+        for item in data["s_regression_info"].split(","):
+            print_func(item.strip())
+
+    metric_keys = _get_metric_keys()
+
+    print_func("\n=== Config ===")
+    config_keys = sorted([key for key in data.keys() if key not in metric_keys])
+    for key in config_keys:
+        if key == "s_regression_info":
+            continue
+        value = data[key]
+        print_func(f'"{key}": {value}')
+
+
+def check_perf_regression(new_data_dict,
+                          fail_on_regression=False,
+                          output_dir=None):
+    """
+    Check performance regression by printing regression data from new_data_dict.
+    If fail_on_regression is True, raises RuntimeError when pre-merge regressions
+    are found. Post-merge regressions only log warnings.
+    If output_dir is provided, saves regression data to regression_data.yaml.
+    """
+    # Filter regression data from new_data_dict
+    regressive_data_list = [
+        data for data in new_data_dict.values()
+        if data.get("b_is_regression", False)
+    ]
+    # Split regression data into post-merge and pre-merge
+    post_merge_regressions = [
+        data for data in regressive_data_list
+        if data.get("b_is_post_merge", False)
+    ]
+    pre_merge_regressions = [
+        data for data in regressive_data_list
+        if not data.get("b_is_post_merge", False)
+    ]
+
+    # Save regression data to yaml file if output_dir is provided
+    if output_dir is not None and len(regressive_data_list) > 0:
+        regression_data_file = os.path.join(output_dir, "regression_data.yaml")
+        with open(regression_data_file, 'w') as f:
+            yaml.dump(regressive_data_list, f, default_flow_style=False)
         print_info(
-            f"Saved {len(all_entries)} perf data entries to {perf_data_file}")
-    elif len(all_entries) == 0:
-        print_info("No perf data to save.")
+            f"Saved {len(regressive_data_list)} regression data to {regression_data_file}"
+        )
 
+    # Print pre-merge regression data with print_warning
+    if len(pre_merge_regressions) > 0:
+        print_warning(
+            f"Found {len(pre_merge_regressions)} pre-merge perf regression data"
+        )
+        for i, data in enumerate(pre_merge_regressions):
+            print_warning(f"\n{'=' * 60}")
+            print_warning(f"Pre-merge Regression Data #{i + 1}")
+            print_warning("=" * 60)
+            _print_regression_data(data, print_func=print_warning)
 
-# def _print_regression_data(data, print_func=None):
-#     """
-#     Print regression info and config.
-#     """
-#     if print_func is None:
-#         print_func = print_info
-#
-#     if "s_regression_info" in data:
-#         print_func("=== Regression Info ===")
-#         for item in data["s_regression_info"].split(","):
-#             print_func(item.strip())
-#
-#     metric_keys = _get_metric_keys()
-#
-#     print_func("\n=== Config ===")
-#     config_keys = sorted([key for key in data.keys() if key not in metric_keys])
-#     for key in config_keys:
-#         if key == "s_regression_info":
-#             continue
-#         value = data[key]
-#         print_func(f'"{key}": {value}')
+        if fail_on_regression:
+            raise RuntimeError(
+                f"Found {len(pre_merge_regressions)} pre-merge perf regression data"
+            )
 
-# def check_perf_regression(new_data_dict,
-#                           fail_on_regression=False,
-#                           output_dir=None):
-#     """
-#     Check performance regression by printing regression data from new_data_dict.
-#     If fail_on_regression is True, raises RuntimeError when regressions are found.
-#     (This is a temporary feature to fail regression tests. We are observing the stability and will fail them by default soon.)
-#     If output_dir is provided, saves regression data to regression_data.yaml.
-#     """
-#     # Filter regression data from new_data_dict
-#     regressive_data_list = [
-#         data for data in new_data_dict.values()
-#         if data.get("b_is_regression", False)
-#     ]
-#     # Split regression data into post-merge and pre-merge
-#     post_merge_regressions = [
-#         data for data in regressive_data_list
-#         if data.get("b_is_post_merge", False)
-#     ]
-#     pre_merge_regressions = [
-#         data for data in regressive_data_list
-#         if not data.get("b_is_post_merge", False)
-#     ]
-#
-#     # Save regression data to yaml file if output_dir is provided
-#     if output_dir is not None and len(regressive_data_list) > 0:
-#         regression_data_file = os.path.join(output_dir, "regression_data.yaml")
-#         with open(regression_data_file, 'w') as f:
-#             yaml.dump(regressive_data_list, f, default_flow_style=False)
-#         print_info(
-#             f"Saved {len(regressive_data_list)} regression data to {regression_data_file}"
-#         )
-#
-#     # Print pre-merge regression data with print_warning
-#     if len(pre_merge_regressions) > 0:
-#         print_warning(
-#             f"Found {len(pre_merge_regressions)} pre-merge perf regression data"
-#         )
-#         for i, data in enumerate(pre_merge_regressions):
-#             print_warning(f"\n{'=' * 60}")
-#             print_warning(f"Pre-merge Regression Data #{i + 1}")
-#             print_warning("=" * 60)
-#             _print_regression_data(data, print_func=print_warning)
-#
-#         if fail_on_regression:
-#             raise RuntimeError(
-#                 f"Found {len(pre_merge_regressions)} pre-merge perf regression data"
-#             )
-#
-#     # Print post-merge regression data with print_warning
-#     if len(post_merge_regressions) > 0:
-#         print_warning(
-#             f"Found {len(post_merge_regressions)} post-merge perf regression data"
-#         )
-#         for i, data in enumerate(post_merge_regressions):
-#             print_warning(f"\n{'=' * 60}")
-#             print_warning(f"Post-merge Regression Data #{i + 1}")
-#             print_warning("=" * 60)
-#             _print_regression_data(data, print_func=print_warning)
-#
-#         if fail_on_regression:
-#             raise RuntimeError(
-#                 f"Found {len(post_merge_regressions)} post-merge perf regression data"
-#             )
-#
-#     # Print summary if no regressions
-#     if len(regressive_data_list) == 0:
-#         print_info("No regression data found.")
+    # Print post-merge regression data with print_warning (never fail)
+    if len(post_merge_regressions) > 0:
+        print_warning(
+            f"Found {len(post_merge_regressions)} post-merge perf regression data"
+        )
+        for i, data in enumerate(post_merge_regressions):
+            print_warning(f"\n{'=' * 60}")
+            print_warning(f"Post-merge Regression Data #{i + 1}")
+            print_warning("=" * 60)
+            _print_regression_data(data, print_func=print_warning)
+
+    # Print summary if no regressions
+    if len(regressive_data_list) == 0:
+        print_info("No regression data found.")
