@@ -1086,6 +1086,11 @@ def runLLMTestlistWithSbatch(pipeline, platform, testList, config=VANILLA_CONFIG
                 envVarsToExport.each { varName, varValue ->
                     srunArgs.add("--container-env=${varName}")
                 }
+
+                println "DEBUG srunArgs before removeAll: ${srunArgs}"
+                srunArgs.removeAll { it == "--mpi=pmi2" || it == "--mpi=pmix" }
+                println "DEBUG srunArgs after removeAll: ${srunArgs}"
+
                 def exemptionComment = ""
                 if (cluster.host.contains("oci-nrt") || cluster.host.contains("oci-hsg") || cluster.host.contains("lbd-lax")) {
                     exemptionComment = """--comment='{"OccupiedIdleGPUsJobReaper":{"exemptIdleTimeMins":"90","reason":"other","description":"Long data and model loading time and disaggregated serving tests"}}'"""
@@ -1133,8 +1138,6 @@ def runLLMTestlistWithSbatch(pipeline, platform, testList, config=VANILLA_CONFIG
 
                     ${srunPrologue}
                 """.replaceAll("(?m)^\\s*", "")
-
-                srunArgs.removeAll { it == "--mpi=pmi2" || it == "--mpi=pmix" }
 
                 if (disaggMode) {
                     def scriptLaunchPrefixPathLocal = Utils.createTempLocation(pipeline, "./slurm_launch_prefix.sh")
