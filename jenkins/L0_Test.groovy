@@ -1142,7 +1142,7 @@ def runLLMTestlistWithSbatch(pipeline, platform, testList, config=VANILLA_CONFIG
                     def scriptSubmitLocalPath = "${llmSrcLocal}/jenkins/scripts/perf/disaggregated/submit.py"
 
                     // Remove unrelated mpi envs before passing to submit.py
-                    // becasue mpi is set in slurm_launch.sh for disagg.
+                    // because mpi env will be set in slurm_launch.sh for disagg.
                     srunArgs.removeAll { it == "--mpi=pmi2" || it == "--mpi=pmix" }
 
                     pipeline.writeFile(file: scriptLaunchPrefixPathLocal, text: scriptLaunchPrefix)
