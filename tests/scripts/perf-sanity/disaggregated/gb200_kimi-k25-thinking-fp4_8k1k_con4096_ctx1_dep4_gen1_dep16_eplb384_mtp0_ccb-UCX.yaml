@@ -47,8 +47,8 @@ accuracy:
 worker_config:
   gen:
     print_iter_log: true
-    max_batch_size: 256
-    max_num_tokens: 256
+    max_batch_size: 128
+    max_num_tokens: 128
     tensor_parallel_size: 16
     moe_expert_parallel_size: 16
     pipeline_parallel_size: 1
@@ -57,10 +57,10 @@ worker_config:
     enable_lm_head_tp_in_adp: true
     cuda_graph_config:
       enable_padding: true
-      max_batch_size: 256
+      max_batch_size: 32
     kv_cache_config:
       enable_block_reuse: false
-      free_gpu_memory_fraction: 0.8
+      free_gpu_memory_fraction: 0.30
       dtype: fp8
     moe_config:
       backend: CUTEDSL
