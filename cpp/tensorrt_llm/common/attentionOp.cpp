@@ -1136,13 +1136,13 @@ int AttentionOp::mlaGeneration(
         tllmRunnerParams.mMaxSeqLenCacheKv = generation_params.max_attention_window_size;
         // This should be set to numDraftTokens + 1.
         tllmRunnerParams.mMaxSeqLenQ = params.acc_q_len / batch_beam;
-        // Override mMaxSeqLenKv with the max cache capacity so FMHA picks the same kernel as
-        // CUDA graph warmup and avoids the eager-mode JIT miss/recompile. This is safe for
-        // PagedKv on this path because the strides do not depend on mMaxSeqLenKv, and extra
-        // KV CTAs exit early through seqLensKvPtr.
-        // TODO: mirror the is_swa + W+1 logic from xqaDispatcher.cpp when MLA gains SWA
-        // support (also requires adding Sliding cubins to the MLA gen kernel set).
-        tllmRunnerParams.mMaxSeqLenKv = generation_params.max_attention_window_size;
+        // Use the actual past KV length so the FMHA kernel selected for MLA generation
+        // matches the runtime sequence length. Pinning to max_attention_window_size aligned
+        // warmup with eager mode but launched extra KV CTAs (gated by seqLensKvPtr) and
+        // produced a slower per-iteration kernel for DeepSeek-R1 NVFP4 TP=4 EP=4 (-12%
+        // throughput). CUDA-graph mode captures the kernel at warmup so eager/graph
+        // alignment is not required for correctness on the graph path.
+        tllmRunnerParams.mMaxSeqLenKv = generation_params.max_past_kv_length;
         tllmRunnerParams.mSumOfSeqLensQ = int(batch_beam * tllmRunnerParams.mMaxSeqLenQ);
         // Not used in the generation kernels as contiguous_kv or paged_kv layouts are used.
         tllmRunnerParams.mSumOfSeqLensKv = int(batch_beam * tllmRunnerParams.mMaxSeqLenKv);
