@@ -3210,11 +3210,19 @@ class PyExecutor:
         # (concurrency == total_max) would otherwise pop all requests into
         # DISAGG_GENERATION_INIT in one iter, tripping PR #12206's fail-fast
         # under ADP-router imbalance and growing the recv-buffer fallback
-        # faster than transfers drain.  Cap at `tp_size` (≈ pre-#12208
-        # blocking fill rate).  Verified on Kimi-K2 8k1k ctx8/gen1 con=8192.
+        # faster than transfers drain.  The cap must keep in-flight transfers
+        # bounded but be loose enough that admission does not stretch across
+        # hundreds of fill iterations (each costs a 0.1s gate sleep).
+        # `tp_size` alone serialized admission to ~1 req/rank/iter, regressing
+        # output_token_throughput by ~13% on disagg gen-only DeepSeek-R1 FP4
+        # con=1024 (nvbug 6204488).  Use a workload-aware cap that scales
+        # with both the parallelism and the configured batch size.
         if (self.is_benchmark_disagg and self._benchmark_fill_phase_active
                 and not self.is_warmup):
-            max_new_requests = min(max_new_requests, self.dist.tp_size)
+            fill_admit_cap = max(self.dist.tp_size,
+                                 min(self.max_batch_size,
+                                     8 * self.dist.tp_size))
+            max_new_requests = min(max_new_requests, fill_admit_cap)
 
         return get_from_waiting_queue(
             waiting_queue,
