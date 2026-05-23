@@ -332,7 +332,7 @@ def get_model_yaml_config(model_label: str,
                     'free_gpu_memory_fraction': 0.9,
                 },
                 'moe_config': {
-                    'backend': 'TRITON'
+                    'backend': 'AUTO'
                 },
                 'print_iter_log': True,
             }
