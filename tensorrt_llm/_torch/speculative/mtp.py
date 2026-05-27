@@ -1,6 +1,19 @@
+import os
 import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, List, Optional
+
+# NVBugs 6162561: MTP draft-token acceptance under TEP gen-worker on
+# lyris GB200 was bimodal across runs (21/22 runs at 1.00 = no draft
+# accepted, 1/22 at 2.00). Per-iteration kernels are stable; the cross-run
+# variance is in the cross-TP-rank max-of-max selection in
+# MTPWorker.draft_sampler, where slightly different NCCL allgather
+# reductions and cuBLAS GEMM workspaces produce different low-order FP
+# bits in local_max_values, flipping the global argmax tie-break.
+# Force deterministic NCCL collectives and a deterministic cuBLAS
+# workspace (setdefault preserves any user-provided override).
+os.environ.setdefault("NCCL_ALGO", "Ring")
+os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
 
 import torch
 import torch.nn.functional as F
