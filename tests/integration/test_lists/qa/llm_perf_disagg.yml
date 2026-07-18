@@ -68,6 +68,8 @@ llm_perf_disagg:
   - perf/test_perf_sanity.py::test_e2e[disagg-e2e-gb200_qwen3-235b-fp4_8k1k_con1024_ctx1_tp1_gen1_dep8_eplb0_mtp0_ccb-UCX] TIMEOUT (120)
   - perf/test_perf_sanity.py::test_e2e[disagg-e2e-gb200_qwen3-235b-fp4_8k1k_con1_ctx1_tp1_gen1_tep4_eplb0_mtp0_ccb-NIXL] TIMEOUT (120)
   - perf/test_perf_sanity.py::test_e2e[disagg-e2e-gb200_qwen3-235b-fp4_8k1k_con64_ctx1_tp1_gen1_tep4_eplb0_mtp0_ccb-NIXL] TIMEOUT (120)
+  # GB200 Qwen3.6-35B-A3B
+  - perf/test_perf_sanity.py::test_e2e[disagg-e2e-gb200_qwen3.6-35b-a3b-fp4_8k1k_con64_ctx1_tp1_gen1_tep4_eplb0_mtp0_ccb-NIXL] TIMEOUT (120)
   # GB200 wideep
   - perf/test_perf_sanity.py::test_e2e[disagg-e2e-gb200_wideep_deepseek-r1-fp4_8k1k_ctx2_gen1_dep32_bs128_eplb288_mtp3_con1024_ccb-NIXL] TIMEOUT (120)
   - perf/test_perf_sanity.py::test_e2e[disagg-e2e-gb200_wideep_deepseek-v32-fp4_8k1k_ctx2_gen1_dep32_bs128_eplb288_mtp3_con1024_ccb-NIXL] TIMEOUT (120)
@@ -92,6 +94,7 @@ llm_perf_disagg:
   # GB200 aggregated gen_only
   - perf/test_perf_sanity.py::test_e2e[disagg-gen_only-gb200_qwen3-235b-fp4_1k1k_ctx1_gen4_tep8_bs32_eplb0_mtp0_con1_ccb-NIXL] TIMEOUT (120)
   - perf/test_perf_sanity.py::test_e2e[disagg-gen_only-gb200_qwen3-235b-fp4_1k1k_ctx2_gen1_dep16_bs128_eplb0_mtp3_con2048_ccb-NIXL] TIMEOUT (120)
+  - perf/test_perf_sanity.py::test_e2e[disagg-gen_only-gb200_qwen3.6-35b-a3b-fp4_8k1k_con64_ctx1_tp1_gen1_tep4_eplb0_mtp0_ccb-NIXL] TIMEOUT (120)
 
 # 2: GB300 test cases
 - condition:
@@ -137,6 +140,8 @@ llm_perf_disagg:
   - perf/test_perf_sanity.py::test_e2e[disagg-e2e-gb300_kimi-k25-thinking-fp4_8k1k_con4_ctx1_dep4_gen1_tep8_eplb0_mtp3_ccb-NIXL] TIMEOUT (120)
   # GB300 Qwen3-235B
   - perf/test_perf_sanity.py::test_e2e[disagg-e2e-gb300_qwen3-235b-fp4_1k1k_ctx2_gen1_dep16_bs128_eplb0_mtp3_con2048_ccb-NIXL] TIMEOUT (120)
+  # GB300 Qwen3.6-35B-A3B
+  - perf/test_perf_sanity.py::test_e2e[disagg-e2e-gb300_qwen3.6-35b-a3b-fp4_8k1k_con64_ctx1_tp1_gen1_tep4_eplb0_mtp0_ccb-NIXL] TIMEOUT (120)
   # GB300 wideep
   - perf/test_perf_sanity.py::test_e2e[disagg-e2e-gb300_wideep_deepseek-r1-fp4_8k1k_ctx2_gen1_dep32_bs128_eplb288_mtp3_con1024_ccb-NIXL] TIMEOUT (120)
   - perf/test_perf_sanity.py::test_e2e[disagg-e2e-gb300_wideep_deepseek-v32-fp4_8k1k_ctx2_gen1_dep32_bs128_eplb288_mtp3_con1024_ccb-NIXL] TIMEOUT (120)
@@ -147,3 +152,4 @@ llm_perf_disagg:
   - perf/test_perf_sanity.py::test_e2e[aggr-ctx_only-gb300_qwen3-235b-fp4_1k1k_ctx2_gen1_dep16_bs128_eplb0_mtp3_con2048_ccb-NIXL] TIMEOUT (120)
   # GB300 aggregated gen_only
   - perf/test_perf_sanity.py::test_e2e[disagg-gen_only-gb300_qwen3-235b-fp4_1k1k_ctx2_gen1_dep16_bs128_eplb0_mtp3_con2048_ccb-NIXL] TIMEOUT (120)
+  - perf/test_perf_sanity.py::test_e2e[disagg-gen_only-gb300_qwen3.6-35b-a3b-fp4_8k1k_con64_ctx1_tp1_gen1_tep4_eplb0_mtp0_ccb-NIXL] TIMEOUT (120)
