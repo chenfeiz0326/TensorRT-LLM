@@ -69,6 +69,10 @@ perf/test_perf_sanity.py::test_e2e[disagg-e2e-gb200_qwen3-235b-fp4_8k1k_con64_ct
 # GB200 Qwen3.6-35B-A3B
 perf/test_perf_sanity.py::test_e2e[disagg-e2e-gb200_qwen3.6-35b-a3b-fp4_8k1k_con64_ctx1_tp1_gen1_tep4_eplb0_mtp0_ccb-NIXL]
 
+# GB200 aggregated Qwen3.6-35B-A3B (auto_perf_opt target)
+perf/test_perf_sanity.py::test_e2e[aggr_upload-gb200_qwen3.6_35b_a3b_fp4_1k6k_blackwell-qwen3.6_35b_a3b_fp4_defaults_1k6k_gb200]
+perf/test_perf_sanity.py::test_e2e[aggr_upload-gb200_qwen3.6_35b_a3b_fp4_1k6k_blackwell-qwen3.6_35b_a3b_fp4_defaults_1k6k_gb200_2gpu]
+
 # GB300 DeepSeek-R1
 perf/test_perf_sanity.py::test_e2e[disagg-e2e-gb300_deepseek-r1-fp4_128k8k_con1_ctx1_pp4_gen1_tep8_eplb0_mtp3_ccb-NIXL]
 perf/test_perf_sanity.py::test_e2e[disagg-e2e-gb300_deepseek-r1-fp4_128k8k_con256_ctx1_pp4_gen1_dep8_eplb0_mtp1_ccb-NIXL]

@@ -1,0 +1,137 @@
+metadata:
+  model_name: qwen3.6_35b_a3b_fp4
+  supported_gpus:
+  - GB200
+  - B200
+hardware:
+  gpus_per_node: 2
+# Baseline-style configs — intentionally close to defaults so auto_perf_opt
+# has room to re-discover Kevin's optimization wins:
+#   1. moe.backend TRTLLM (vs AUTO/CUTEDSL) — biggest 1-GPU lever
+#   2. cuda_graph enable_padding=true + max_batch_size covering c=512
+#   3. stream_interval=4 — fixes high-concurrency GIL collapse
+#   4. TP=2, MoE-EP=2 (TEP mapping) for the fine-grained 256-expert MoE
+# The 1-GPU c=1..256 point uses defaults; the 2-GPU point runs the
+# c=1..512 curve so the optimizer can compare 1x vs 2x scale-out.
+#
+# ISL/OSL = 1024/6144 matches Kevin's exp1/exp2/exp3 (long-decode load
+# shape where MoE + GDN kernels dominate — the interesting workload).
+server_configs:
+- name: qwen3.6_35b_a3b_fp4_defaults_1k6k_gb200
+  # Single-GPU, default-ish knobs. Kevin's baseline was here (mean
+  # output_throughput=3402.8 tok/s on 1x B200 across c=1..256).
+  model_name: qwen3.6_35b_a3b_fp4
+  gpus: 1
+  match_mode: scenario
+  tensor_parallel_size: 1
+  pipeline_parallel_size: 1
+  trust_remote_code: true
+  max_batch_size: 2048
+  max_num_tokens: 8192
+  print_iter_log: true
+  disable_overlap_scheduler: false
+  kv_cache_config:
+    dtype: auto
+    free_gpu_memory_fraction: 0.9
+    enable_block_reuse: false
+  # Default cuda_graph_config lets the workflow auto-pick a batch-size
+  # bucket set; leaving out max_batch_size deliberately triggers the
+  # eager-decode cliff at high concurrency that Kevin's opt-002 fixed.
+  cuda_graph_config:
+    enable_padding: false
+    max_batch_size: 128
+  # moe.backend default (AUTO) — Kevin's opt-001 flipped this to TRTLLM
+  # for +49.5%. Leaving default so the optimizer can re-discover.
+  moe_config:
+    backend: AUTO
+  client_configs:
+  - name: con1_isl1024_osl6144
+    concurrency: 1
+    iterations: 10
+    isl: 1024
+    osl: 6144
+    random_range_ratio: 0.0
+    backend: openai
+    streaming: true
+  - name: con32_isl1024_osl6144
+    concurrency: 32
+    iterations: 10
+    isl: 1024
+    osl: 6144
+    random_range_ratio: 0.0
+    backend: openai
+    streaming: true
+  - name: con128_isl1024_osl6144
+    concurrency: 128
+    iterations: 10
+    isl: 1024
+    osl: 6144
+    random_range_ratio: 0.0
+    backend: openai
+    streaming: true
+  - name: con256_isl1024_osl6144
+    concurrency: 256
+    iterations: 10
+    isl: 1024
+    osl: 6144
+    random_range_ratio: 0.0
+    backend: openai
+    streaming: true
+
+- name: qwen3.6_35b_a3b_fp4_defaults_1k6k_gb200_2gpu
+  # 2-GPU, default-ish knobs. Uses TP=2 as the parallel plan a naive
+  # engineer might pick; Kevin's roadmap notes explicitly warned:
+  # "never plain moe-TP" (TP-shards each already-small expert GEMM).
+  # Leaving moe.backend AUTO so the optimizer can pick TEP + TRTLLM.
+  model_name: qwen3.6_35b_a3b_fp4
+  gpus: 2
+  match_mode: scenario
+  tensor_parallel_size: 2
+  pipeline_parallel_size: 1
+  trust_remote_code: true
+  max_batch_size: 2048
+  max_num_tokens: 8192
+  print_iter_log: true
+  disable_overlap_scheduler: false
+  kv_cache_config:
+    dtype: auto
+    free_gpu_memory_fraction: 0.9
+    enable_block_reuse: false
+  cuda_graph_config:
+    enable_padding: false
+    max_batch_size: 128
+  moe_config:
+    backend: AUTO
+  client_configs:
+  - name: con1_isl1024_osl6144
+    concurrency: 1
+    iterations: 10
+    isl: 1024
+    osl: 6144
+    random_range_ratio: 0.0
+    backend: openai
+    streaming: true
+  - name: con64_isl1024_osl6144
+    concurrency: 64
+    iterations: 10
+    isl: 1024
+    osl: 6144
+    random_range_ratio: 0.0
+    backend: openai
+    streaming: true
+  - name: con256_isl1024_osl6144
+    concurrency: 256
+    iterations: 10
+    isl: 1024
+    osl: 6144
+    random_range_ratio: 0.0
+    backend: openai
+    streaming: true
+  - name: con512_isl1024_osl6144
+    concurrency: 512
+    iterations: 10
+    isl: 1024
+    osl: 6144
+    random_range_ratio: 0.0
+    backend: openai
+    streaming: true
