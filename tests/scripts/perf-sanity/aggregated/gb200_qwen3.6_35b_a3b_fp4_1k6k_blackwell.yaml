@@ -135,3 +135,40 @@ server_configs:
     random_range_ratio: 0.0
     backend: openai
     streaming: true
+- name: qwen3.6_35b_a3b_fp4_opt_1k6k_gb200_2gpu
+  # OPTIMIZED baseline for auto_perf_opt. Colleague's known wins pre-applied:
+  #   moe.backend=TRTLLM, cuda_graph enable_padding + max_batch_size=256.
+  # PLUS additional pre-applied wins (per user request):
+  #   moe_expert_parallel_size=2 (TEP mapping, avoids plain moe-TP on the
+  #   256-expert MoE) and stream_interval=4 (high-concurrency GIL relief).
+  # The optimizer must find gains BEYOND this already-strong baseline.
+  model_name: qwen3.6_35b_a3b_fp4
+  gpus: 2
+  match_mode: scenario
+  tensor_parallel_size: 2
+  moe_expert_parallel_size: 2
+  pipeline_parallel_size: 1
+  trust_remote_code: true
+  max_batch_size: 2048
+  max_num_tokens: 8192
+  print_iter_log: true
+  disable_overlap_scheduler: false
+  stream_interval: 4
+  kv_cache_config:
+    dtype: auto
+    free_gpu_memory_fraction: 0.9
+    enable_block_reuse: false
+  cuda_graph_config:
+    enable_padding: true
+    max_batch_size: 256
+  moe_config:
+    backend: TRTLLM
+  client_configs:
+  - name: con64_iter4_isl1024_osl6144
+    concurrency: 64
+    iterations: 4
+    isl: 1024
+    osl: 6144
+    random_range_ratio: 0.0
+    backend: openai
+    streaming: true
