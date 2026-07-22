@@ -135,8 +135,13 @@ class RMSNorm(nn.Module):
         # for MoE-gate consumers). When is_nvfp4 but no scale is attached yet
         # (e.g. a layer's first input_layernorm whose consumer has no static
         # scale), fall through to the plain norm below.
+        # Gemma norms are now supported on the fused path: the reduce_fusion
+        # kernels apply (weight + 1) when use_gemma is threaded through (see
+        # _fused_nvfp4_quant). The warp-specialized op is NOT gemma-aware, so
+        # _ws_kernel_eligible excludes gemma to keep gemma on the reduce_fusion
+        # path.
         nvfp4_scale = self.nvfp4_scale if self.is_nvfp4 else None
-        if nvfp4_scale is not None and not self.use_gemma:
+        if nvfp4_scale is not None:
             return self._fused_nvfp4_quant(hidden_states, residual, nvfp4_scale,
                                            return_norm_out)
 
@@ -221,6 +226,11 @@ class RMSNorm(nn.Module):
         edge with a large enough row count and an in-range hidden dim. The
         residual-less and row-strided (column-slice) edges have no ws equivalent
         and always use reduce_fusion. See _WS_M_THRESHOLD / _WS_MIN_N."""
+        # The ws op (fused_add_rms_norm_quant) does not apply the gemma
+        # (weight + 1) offset, so gemma norms must always take the
+        # reduce_fusion path (which does, via the use_gemma flag).
+        if self.use_gemma:
+            return False
         if residual is None:
             return False
         n = hidden_states.shape[-1]
@@ -272,6 +282,7 @@ class RMSNorm(nn.Module):
                 sf_scale,
                 float(self.variance_epsilon),
                 want_norm,
+                self.use_gemma,
             )
             if want_norm:
                 bf16_hs, act_fp4, act_sf, residual_out = results
@@ -295,6 +306,7 @@ class RMSNorm(nn.Module):
             sf_scale,
             float(self.variance_epsilon),
             want_norm,
+            self.use_gemma,
         )
         if want_norm:
             norm_out, act_fp4, act_sf = results

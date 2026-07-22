@@ -1297,6 +1297,7 @@ def _register_fake():
         scale_factor: torch.Tensor,
         eps: float,
         return_norm_out: bool,
+        use_gemma: bool = False,
     ) -> List[torch.Tensor]:
         # quant_out: packed NVFP4 (E2M1x2) as uint8, last dim halved, leading
         # dims preserved. scale_out: swizzled E4M3 scale bytes. residual_out:
@@ -1327,6 +1328,7 @@ def _register_fake():
         scale_factor: torch.Tensor,
         eps: float,
         return_norm_out: bool,
+        use_gemma: bool = False,
     ) -> List[torch.Tensor]:
         # Residual-less variant. quant_out / sf_out as above; norm_out (packed,
         # contiguous) leads the tuple when return_norm_out.

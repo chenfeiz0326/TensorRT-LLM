@@ -49,7 +49,7 @@ namespace torch_ext
 // Returns: [quant_out, scale_out, residual_out] or
 //          [norm_out, quant_out, scale_out, residual_out] when return_norm_out.
 std::vector<at::Tensor> fused_add_rmsnorm_fp4_quantize(at::Tensor const& hidden_states, at::Tensor residual,
-    at::Tensor const& norm_weight, at::Tensor const& scale_factor, double eps, bool return_norm_out)
+    at::Tensor const& norm_weight, at::Tensor const& scale_factor, double eps, bool return_norm_out, bool use_gemma)
 {
     CHECK_TH_CUDA(hidden_states);
     CHECK_CONTIGUOUS(hidden_states);
@@ -115,6 +115,7 @@ std::vector<at::Tensor> fused_add_rmsnorm_fp4_quantize(at::Tensor const& hidden_
     params.eps = static_cast<float>(eps);
     params.elts_total = hidden_states.numel();
     params.sf_layout = tensorrt_llm::QuantizationSFLayout::SWIZZLED;
+    params.use_gemma = use_gemma;
 
     auto const stream = at::cuda::getCurrentCUDAStream(hidden_states.get_device());
     auto const dtype = tensorrt_llm::runtime::TorchUtils::dataType(hidden_states.scalar_type());
@@ -147,7 +148,7 @@ std::vector<at::Tensor> fused_add_rmsnorm_fp4_quantize(at::Tensor const& hidden_
 // Returns: [quant_out, scale_out] or [norm_out, quant_out, scale_out] when
 //          return_norm_out.
 std::vector<at::Tensor> fused_rmsnorm_fp4_quantize(at::Tensor const& hidden_states, at::Tensor const& norm_weight,
-    at::Tensor const& scale_factor, double eps, bool return_norm_out)
+    at::Tensor const& scale_factor, double eps, bool return_norm_out, bool use_gemma)
 {
     CHECK_TH_CUDA(hidden_states);
     CHECK_TH_CUDA(norm_weight);
@@ -221,6 +222,7 @@ std::vector<at::Tensor> fused_rmsnorm_fp4_quantize(at::Tensor const& hidden_stat
     params.elts_total = hidden_states.numel();
     params.sf_layout = tensorrt_llm::QuantizationSFLayout::SWIZZLED;
     params.input_row_stride = input_row_stride;
+    params.use_gemma = use_gemma;
 
     auto const stream = at::cuda::getCurrentCUDAStream(hidden_states.get_device());
     auto const dtype = tensorrt_llm::runtime::TorchUtils::dataType(hidden_states.scalar_type());
@@ -247,14 +249,16 @@ TORCH_LIBRARY_FRAGMENT(trtllm, m)
         "Tensor norm_weight,"
         "Tensor scale_factor,"
         "float eps,"
-        "bool return_norm_out) -> Tensor[]");
+        "bool return_norm_out,"
+        "bool use_gemma=False) -> Tensor[]");
     m.def(
         "fused_rmsnorm_fp4_quantize("
         "Tensor hidden_states,"
         "Tensor norm_weight,"
         "Tensor scale_factor,"
         "float eps,"
-        "bool return_norm_out) -> Tensor[]");
+        "bool return_norm_out,"
+        "bool use_gemma=False) -> Tensor[]");
 }
 
 TORCH_LIBRARY_IMPL(trtllm, CUDA, m)

@@ -132,7 +132,7 @@ inline __device__ float accumulate(float acc, PackedStruct& vec)
     return acc;
 }
 
-template <typename T, bool Affine, typename PackedStruct>
+template <typename T, bool Affine, bool Gemma, typename PackedStruct>
 inline __device__ int4 rms_norm(float denom, PackedStruct& vec, PackedStruct& weight)
 {
     static constexpr int kLoopNum = sizeof(PackedStruct) / sizeof(T);
@@ -144,7 +144,17 @@ inline __device__ int4 rms_norm(float denom, PackedStruct& vec, PackedStruct& we
         if constexpr (Affine)
         {
             float v2 = static_cast<float>(reinterpret_cast<T*>(weight.unpacked)[i]);
-            reinterpret_cast<T*>(ret.unpacked)[i] = static_cast<T>(v1 * denom * v2);
+            // Gemma-style RMSNorm scales by (1 + weight); standard scales by
+            // weight. The +1 is applied in fp32 before the down-cast, matching
+            // fusedQKNormRopeKernel.cu and the non-fused RMSNorm reference.
+            if constexpr (Gemma)
+            {
+                reinterpret_cast<T*>(ret.unpacked)[i] = static_cast<T>(v1 * denom * (v2 + 1.0f));
+            }
+            else
+            {
+                reinterpret_cast<T*>(ret.unpacked)[i] = static_cast<T>(v1 * denom * v2);
+            }
         }
         else
         {
@@ -168,7 +178,7 @@ inline __device__ int4 rms_norm(float denom, PackedStruct& vec, PackedStruct& we
 //     warp-cooperatively via __shfl_xor_sync inside cvt_warp_fp16_to_fp4.
 //   - Caller guarantees hidden_size % SF_VEC_SIZE == 0.
 template <typename T, bool Bias = false, bool Residual = false, bool Affine = false, bool UseSmem = false,
-    bool OutNorm = false>
+    bool OutNorm = false, bool Gemma = false>
 __global__ void rmsNormFp4QuantKernel(RmsNormFp4QuantParams params)
 {
     static constexpr int kPackedSize = kBytesPerAccess / sizeof(T);
@@ -271,7 +281,7 @@ __global__ void rmsNormFp4QuantKernel(RmsNormFp4QuantParams params)
             {
                 weight_vec.packed = *reinterpret_cast<int4 const*>(weight_buffer + offset);
             }
-            inter_vec.packed = rms_norm<T, Affine>(denom, inter_vec, weight_vec);
+            inter_vec.packed = rms_norm<T, Affine, Gemma>(denom, inter_vec, weight_vec);
             if constexpr (OutNorm)
             {
                 *reinterpret_cast<int4*>(norm_out + offset) = inter_vec.packed;
@@ -327,63 +337,78 @@ void launchRmsNormFp4QuantKernel(RmsNormFp4QuantParams const& params, cudaStream
     bool const has_bias = params.bias_buffer != nullptr;
     bool const has_residual = params.residual_buffer != nullptr;
     bool const has_weight = params.weight_buffer != nullptr;
+    // Gemma (weight+1) scaling only applies on the affine (has_weight) path.
+    bool const use_gemma = has_weight && params.use_gemma;
 
-    // Macro-dispatch over Bias/Residual/Affine/UseSmem and the OutNorm template arg.
-    // Launch through launchWithPdlWhenEnabled so the kernel's PDL primitives
-    // (cudaGridDependencySynchronize / cudaTriggerProgrammaticLaunchCompletion)
-    // are actually enabled when TLLM_ENABLE_PDL is set.
-#define DISPATCH_FP4_QUANT(BIAS, RESIDUAL, AFFINE, SMEM)                                                               \
+    // Macro-dispatch over Bias/Residual/Affine/UseSmem/Gemma and the OutNorm
+    // template arg. Launch through launchWithPdlWhenEnabled so the kernel's PDL
+    // primitives (cudaGridDependencySynchronize /
+    // cudaTriggerProgrammaticLaunchCompletion) are actually enabled when
+    // TLLM_ENABLE_PDL is set.
+#define DISPATCH_FP4_QUANT(BIAS, RESIDUAL, AFFINE, SMEM, GEMMA)                                                        \
     if (use_smem == SMEM)                                                                                              \
     {                                                                                                                  \
         tensorrt_llm::common::launchWithPdlWhenEnabled("rmsNormFp4Quant",                                              \
-            rmsNormFp4QuantKernel<T, BIAS, RESIDUAL, AFFINE, SMEM, OutNorm>, dim3(cta_num), dim3(cta_size),            \
-            static_cast<size_t>(smem_size), stream, params);                                                           \
+            rmsNormFp4QuantKernel<T, BIAS, RESIDUAL, AFFINE, SMEM, OutNorm, GEMMA>, dim3(cta_num), dim3(cta_size),     \
+            static_cast<size_t>(smem_size), stream, params);                                                          \
+    }
+
+    // The Gemma axis is only expanded on the has_weight (Affine=true) branches
+    // (it is a no-op without weights), so the non-affine branches keep a single
+    // Gemma=false instantiation.
+#define DISPATCH_FP4_QUANT_AFFINE(BIAS, RESIDUAL)                                                                      \
+    if (use_gemma)                                                                                                     \
+    {                                                                                                                  \
+        DISPATCH_FP4_QUANT(BIAS, RESIDUAL, true, true, true)                                                          \
+        else DISPATCH_FP4_QUANT(BIAS, RESIDUAL, true, false, true)                                                    \
+    }                                                                                                                  \
+    else                                                                                                              \
+    {                                                                                                                  \
+        DISPATCH_FP4_QUANT(BIAS, RESIDUAL, true, true, false)                                                         \
+        else DISPATCH_FP4_QUANT(BIAS, RESIDUAL, true, false, false)                                                   \
     }
 
     auto launch = [&]()
     {
         if (has_bias && has_residual && has_weight)
         {
-            DISPATCH_FP4_QUANT(true, true, true, true)
-            else DISPATCH_FP4_QUANT(true, true, true, false)
+            DISPATCH_FP4_QUANT_AFFINE(true, true)
         }
         else if (!has_bias && has_residual && has_weight)
         {
-            DISPATCH_FP4_QUANT(false, true, true, true)
-            else DISPATCH_FP4_QUANT(false, true, true, false)
+            DISPATCH_FP4_QUANT_AFFINE(false, true)
         }
         else if (has_bias && !has_residual && has_weight)
         {
-            DISPATCH_FP4_QUANT(true, false, true, true)
-            else DISPATCH_FP4_QUANT(true, false, true, false)
+            DISPATCH_FP4_QUANT_AFFINE(true, false)
         }
         else if (!has_bias && !has_residual && has_weight)
         {
-            DISPATCH_FP4_QUANT(false, false, true, true)
-            else DISPATCH_FP4_QUANT(false, false, true, false)
+            DISPATCH_FP4_QUANT_AFFINE(false, false)
         }
         else if (has_bias && has_residual && !has_weight)
         {
-            DISPATCH_FP4_QUANT(true, true, false, true)
-            else DISPATCH_FP4_QUANT(true, true, false, false)
+            DISPATCH_FP4_QUANT(true, true, false, true, false)
+            else DISPATCH_FP4_QUANT(true, true, false, false, false)
         }
         else if (!has_bias && has_residual && !has_weight)
         {
-            DISPATCH_FP4_QUANT(false, true, false, true)
-            else DISPATCH_FP4_QUANT(false, true, false, false)
+            DISPATCH_FP4_QUANT(false, true, false, true, false)
+            else DISPATCH_FP4_QUANT(false, true, false, false, false)
         }
         else if (has_bias && !has_residual && !has_weight)
         {
-            DISPATCH_FP4_QUANT(true, false, false, true)
-            else DISPATCH_FP4_QUANT(true, false, false, false)
+            DISPATCH_FP4_QUANT(true, false, false, true, false)
+            else DISPATCH_FP4_QUANT(true, false, false, false, false)
         }
         else
         {
-            DISPATCH_FP4_QUANT(false, false, false, true)
-            else DISPATCH_FP4_QUANT(false, false, false, false)
+            DISPATCH_FP4_QUANT(false, false, false, true, false)
+            else DISPATCH_FP4_QUANT(false, false, false, false, false)
         }
     };
     launch();
+#undef DISPATCH_FP4_QUANT_AFFINE
 #undef DISPATCH_FP4_QUANT
 }
 

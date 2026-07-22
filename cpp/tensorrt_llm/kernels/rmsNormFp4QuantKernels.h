@@ -73,6 +73,12 @@ struct RmsNormFp4QuantParams
     // column-slice of a wider projection) without a preceding contiguous copy.
     // Outputs are always written packed.
     int input_row_stride{0};
+    // Gemma-style RMSNorm: scale the normalized value by (weight + 1) instead
+    // of by weight. Gemma norms store gamma centered at 0, so the +1 is
+    // required to match the reference (weight + 1) * normed semantics. Only
+    // meaningful when weight_buffer != nullptr (the affine path). See
+    // fusedQKNormRopeKernel.cu for the same (1.0f + weight) convention.
+    bool use_gemma{false};
 };
 
 // Fused (optional residual-add +) RMSNorm + NVFP4 input-quantize. Folds RMSNorm

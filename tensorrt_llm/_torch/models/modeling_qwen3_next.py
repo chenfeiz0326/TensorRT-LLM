@@ -49,7 +49,8 @@ from ..modules.fused_moe import (BaseMoeRoutingMethod, MoEWeightLoadingMode,
                                  RenormalizeNaiveMoeRoutingMethod,
                                  RoutingMethodType, create_moe)
 from ..modules.gated_mlp import GatedMLP
-from ..modules.linear import Linear, TensorParallelMode
+from ..modules.linear import (Linear, TensorParallelMode,
+                              is_static_nvfp4_input_eligible)
 from ..modules.mamba.gdn_mixer import Qwen3NextGatedDeltaNet
 from ..modules.multi_stream_utils import maybe_execute_in_parallel
 from ..modules.rms_norm import RMSNorm
@@ -58,6 +59,19 @@ from ..utils import AuxStreamType, EventType, create_lm_head_tp_mapping
 from .modeling_qwen3 import Qwen3Attention
 from .modeling_speculative import SpecDecOneEngineForCausalLM
 from .modeling_utils import DecoderModel, EagerFusionConfig, register_auto_model
+
+
+def _static_nvfp4_input_scale(linear):
+    """Return ``linear``'s calibrated NVFP4 input_scale if it is eligible to be
+    folded into a producing RMSNorm's fused NVFP4 quantize, else None.
+
+    Mirrors modeling_deepseekv3._static_nvfp4_input_scale: the shared
+    ``is_static_nvfp4_input_eligible`` predicate keeps every fold site in
+    agreement on what "static-NVFP4 eligible" means. Returns None (fused path
+    stays inert) for a None / non-NVFP4 / forced-dynamic / AWQ Linear."""
+    if is_static_nvfp4_input_eligible(linear):
+        return linear.input_scale
+    return None
 
 
 class Qwen3NextGate(nn.Module):
@@ -513,11 +527,24 @@ class Qwen3NextFullAttentionDecoderLayer(DecoderLayer):
 
         self.mlp = _create_mlp(model_config, aux_stream, layer_idx)
 
+        # On NVFP4 models, build input_layernorm as an NVFP4 gemma norm so the
+        # (add+)RMSNorm + qkv_proj input-quant fuse into one kernel once
+        # setup_aliases attaches its .nvfp4_scale (see below). The fused kernel
+        # now applies the gemma (weight+1) offset (use_gemma threaded through
+        # rms_norm.py -> rmsNormFp4QuantKernels). The norm falls back to the
+        # plain path whenever no scale is attached, so this is inert on
+        # non-NVFP4 builds / non-eligible consumers.
+        is_nvfp4 = model_config.get_quant_config().layer_quant_mode.has_nvfp4()
+        nvfp4_norm = "nvfp4" if is_nvfp4 else None
         self.input_layernorm = RMSNorm(hidden_size=config.hidden_size,
                                        eps=config.rms_norm_eps,
                                        dtype=config.torch_dtype,
-                                       use_gemma=True)
+                                       use_gemma=True,
+                                       quantize_type=nvfp4_norm)
 
+        # post_attention_layernorm feeds the MoE block (gate is bf16 cublas_mm,
+        # experts route input-quant internally), so leave it a plain gemma norm
+        # -- matching DeepSeek's decision to not fold the MoE-feeding norm.
         self.post_attention_layernorm = RMSNorm(hidden_size=config.hidden_size,
                                                 eps=config.rms_norm_eps,
                                                 dtype=config.torch_dtype,
@@ -1013,3 +1040,18 @@ class Qwen3NextForCausalLM(SpecDecOneEngineForCausalLM[Qwen3NextModel,
             else:
                 layer.next_layer_layernorm = self.model.layers[
                     idx + 1].input_layernorm
+
+            # Fold each full-attention layer's input_layernorm into its
+            # qkv_proj NVFP4 input-quant: attach the consuming Linear's static
+            # input_scale so RMSNorm.forward takes the fused (gemma) path. This
+            # input_layernorm also serves the previous layer's boundary
+            # add+RMSNorm via the next_layer_layernorm alias above, so the fold
+            # covers both edges. Linear-attention layers have no single fused
+            # input Linear (GatedDeltaNet splits into in_proj_qkvz + in_proj_ba)
+            # and MoE-feeding post_attention_layernorm routes expert-input quant
+            # internally -- both left inert, matching DeepSeek's handling. The
+            # helper returns None for any non-eligible / missing consumer, so
+            # this is safe to run unconditionally.
+            self_attn = getattr(layer, "self_attn", None)
+            layer.input_layernorm.nvfp4_scale = _static_nvfp4_input_scale(
+                getattr(self_attn, "qkv_proj", None))
