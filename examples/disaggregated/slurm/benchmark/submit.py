@@ -304,17 +304,31 @@ def build_worker_environment(worker_config, env_config, role, benchmark_mode,
         upsert_env_config(env_config, 'worker_env_var',
                           'TRTLLM_DISAGG_BENCHMARK_GEN_ONLY',
                           'TRTLLM_DISAGG_BENCHMARK_GEN_ONLY=1')
-    if benchmark_mode == "gen_only" and role == "GEN":
-        # GEN worker only: skipping transfer-state polling helps the generation
-        # worker, but the same flag on the CTX worker has been seen to hang
-        # gen_only runs with KV blocks never released.
-        upsert_env_config(env_config, 'gen_worker_env_var',
-                          'TRTLLM_DISABLE_KV_CACHE_TRANSFER_OVERLAP',
-                          'TRTLLM_DISABLE_KV_CACHE_TRANSFER_OVERLAP=1')
-        concurrency = _parse_positive_concurrency(concurrency)
-        upsert_env_config(env_config, 'gen_worker_env_var',
-                          'TLLM_BENCHMARK_REQ_QUEUES_SIZE',
-                          f'TLLM_BENCHMARK_REQ_QUEUES_SIZE={concurrency}')
+    if benchmark_mode == "gen_only":
+        # NVBug 6647405: PR #17535 restricted TRTLLM_DISABLE_KV_CACHE_TRANSFER_OVERLAP
+        # to the GEN worker only. That flip forces the CTX worker onto the async
+        # KV-cache-transfer completion path (respond_and_send_async +
+        # _check_disagg_ctx_cache_transfer_status polling) and introduces a
+        # ~1 s stall at the CTX prefill-batch boundary, producing a ~20 %
+        # regression on gen_only benchmarks (verified on DeepSeek-R1-FP4
+        # dep4/tep8 + MTP3 8k1k con1). Restore the flag on CTX inside the
+        # gen_only benchmark harness. An env-var opt-out preserves #17535's
+        # behavior for configurations that hit the CTX-side KV-block-release
+        # hang.
+        _keep_ctx_async = os.environ.get(
+            'TRTLLM_DISAGG_BENCHMARK_KEEP_CTX_ASYNC_KV_TRANSFER', '0') == '1'
+        if role == 'CTX' and not _keep_ctx_async:
+            upsert_env_config(env_config, 'ctx_worker_env_var',
+                              'TRTLLM_DISABLE_KV_CACHE_TRANSFER_OVERLAP',
+                              'TRTLLM_DISABLE_KV_CACHE_TRANSFER_OVERLAP=1')
+        if role == 'GEN':
+            upsert_env_config(env_config, 'gen_worker_env_var',
+                              'TRTLLM_DISABLE_KV_CACHE_TRANSFER_OVERLAP',
+                              'TRTLLM_DISABLE_KV_CACHE_TRANSFER_OVERLAP=1')
+            concurrency = _parse_positive_concurrency(concurrency)
+            upsert_env_config(env_config, 'gen_worker_env_var',
+                              'TLLM_BENCHMARK_REQ_QUEUES_SIZE',
+                              f'TLLM_BENCHMARK_REQ_QUEUES_SIZE={concurrency}')
 
     # 2. Add profiling env vars to env_config (conditional)
     if nsys_on:

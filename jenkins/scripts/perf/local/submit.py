@@ -901,8 +901,16 @@ def main():
             srun_args_lines.append("--container-env=TRTLLM_DISAGG_BENCHMARK_GEN_ONLY")
         elif "gen_only" in bm_config.get("mode", ""):
             concurrency = bm_config.get("concurrency", 1)
-            # GEN worker only: the same flag on the CTX worker has been seen to
-            # hang gen_only runs with KV blocks never released.
+            # NVBug 6647405: restore TRTLLM_DISABLE_KV_CACHE_TRANSFER_OVERLAP=1
+            # on the CTX worker to reverse the ~20 % regression introduced by
+            # PR #17535 (see examples/disaggregated/slurm/benchmark/submit.py
+            # for details). Env-var opt-out
+            # TRTLLM_DISAGG_BENCHMARK_KEEP_CTX_ASYNC_KV_TRANSFER=1 preserves
+            # #17535 behavior for configurations hitting the CTX hang.
+            if os.environ.get("TRTLLM_DISAGG_BENCHMARK_KEEP_CTX_ASYNC_KV_TRANSFER", "0") != "1":
+                ctx_worker_env_vars = (
+                    f"TRTLLM_DISABLE_KV_CACHE_TRANSFER_OVERLAP=1 {ctx_worker_env_vars}"
+                )
             gen_worker_env_vars = (
                 f"TRTLLM_DISABLE_KV_CACHE_TRANSFER_OVERLAP=1 "
                 f"TLLM_BENCHMARK_REQ_QUEUES_SIZE={concurrency} {gen_worker_env_vars}"
