@@ -35,11 +35,11 @@ failed_prs: []
   sites are visible in the diff being replaced); the fix PR states the
   round-trips "caused the perf regression observed in PR12643"
   ("[TRTLLM-11715][infra] Upgrade dependencies for dlfw 26.04 stack", merged
-  2026-06-28 as `b6d186af57`). Per the NVBug, the cost was hidden on `main`
-  but exposed on that PR's branch — i.e. the dependency-stack upgrade raised
-  the unit cost of a pre-existing per-step host call until it tripped the bar
-  in PR12643's pre-merge job, and the fix (2026-06-26) actually landed on
-  `main` two days *before* the dep bump did.
+  2026-06-28 as `b6d186af57`). The fix (2026-06-26) landed on `main` two
+  days *before* the dep bump did, so the regression was observed on that PR's
+  branch — i.e. the dependency-stack upgrade (CUDA 13.2, PyTorch 2.11 per its
+  description) raised the unit cost of a pre-existing per-step host call until
+  it tripped the bar.
 - **Fix mechanism:** cache the SM count once: new private member
   `mMultiProcessorCount` in `cpp/tensorrt_llm/kernels/fmhaDispatcher.h`,
   initialized from `getMultiProcessorCount()` in the constructor initializer

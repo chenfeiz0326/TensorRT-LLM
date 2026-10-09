@@ -131,13 +131,12 @@ patterns:
       Triage: compare kernel names / collective algo in the trace against a
       good run; grep logs for fallback warnings; audit eligibility guards
       (dtype/arch/shape/capability checks) added or changed in the range.
-      The AutoDeploy SYMM_MEM→NCCL instance was removed on 2026-08-12: its only
-      bug, 6221450, is a functional bug (an L0 post-merge *accuracy* assertion
-      on `TestQwen3_5_397B_MoE::test_nvfp4`), and the slower allreduce was
-      noticed while root-causing that accuracy collapse rather than by a perf
-      bar. The fallback mechanism is identical to the surviving instances —
-      read `case-nemotronh-mnnvl-nccl-fallback` for the same shape with a
-      performance bug behind it.
+      The AutoDeploy SYMM_MEM→NCCL instance (nvbug 6221450, PR #14667) was
+      removed on 2026-08-12: its fix PR is titled and described as a Qwen3.5
+      400B NVFP4 *accuracy* regression fix (sharding config + swiglu fusion
+      changes), not a perf change. The fallback mechanism is identical to the
+      surviving instances — read `case-nemotronh-mnnvl-nccl-fallback` for the
+      same shape with a perf fix behind it.
       Guards must fail closed on capability, open on perf.
 
   - id: pattern-kernel-swap-regressed
@@ -190,8 +189,9 @@ patterns:
       Four failure shapes, all present in this family. (d) A compiled op is
       reachable only from a branch the warmup never enters — the MLA
       chunked-prefill `maybe_compiled_cat` case, moved here from the instability
-      cookbook on 2026-08-12 because its bug 5823212 is a bisected regression
-      filed as a performance bug. It is the family's clearest example of the
+      cookbook on 2026-08-12 because its fix (PR #11743) removes a recurring
+      runtime compile from the hot path, i.e. it moves the mean rather than the
+      variance. It is the family's clearest example of the
       first-use-recompile trap: a cost paid once per process reads as a
       first-iter spike in a trace while moving the *mean* and not the variance,
       so it belongs to regression triage, not instability triage.
@@ -207,10 +207,10 @@ patterns:
       The warmup shape grid must cover what the runtime can legitimately
       request; when a clamp is unavoidable, clamp per-op rather than globally.
       A fourth instance (Helix context-parallel warmup entirely missing,
-      PR #11460) was removed on 2026-08-12: its bug 5888410 is a functional
-      bug — TPOT from the iteration logs disagreed widely with TPOT from the
-      benchmark logs, i.e. two instruments disagreeing rather than a measured
-      slowdown. The missing-CP-warmup mechanism is real and is shape (a); read
+      PR #11460) was removed on 2026-08-12: per the PR description, the
+      missing warmup made the first iteration include CUDA-graph warmup time
+      and so skewed the benchmark's reported median TPOT — a measurement
+      discrepancy rather than a slowdown of the served path. The missing-CP-warmup mechanism is real and is shape (a); read
       #11460 directly if you are auditing context-parallel warmup.
       Two further shapes, both with instances here. (e) Warmup gated on an
       unrelated FEATURE flag rather than on "can we warm up?" — with
@@ -240,12 +240,13 @@ patterns:
       counts / free-memory fractions across builds; audit dtype-size and
       layer-count terms in estimators after any cache-layout change.
       Two spec-decode instances were removed on 2026-08-12 — EAGLE3 draft KV
-      over-allocated by `max_draft_len×` (nvbug 6269778) and host KV budget
-      double-counted with offloading (nvbug 6035425) — because both are filed
-      as functional bugs. They are genuine capacity-accounting defects and the
-      mechanism belongs to this pattern; they simply were not filed as perf
-      bugs, and this cookbook records only performance-bug provenance. If you
-      are auditing spec-decode KV sizing, read those two bugs directly: the
+      over-allocated by `max_draft_len×` (PR #15017) and host KV budget
+      double-counted with offloading (PR #13130) — because both fix PRs
+      describe a memory-accounting correction with no perf symptom stated.
+      They are genuine capacity-accounting defects and the mechanism belongs
+      to this pattern; they simply lack perf evidence, which is this
+      cookbook's admission rule. If you are auditing spec-decode KV sizing,
+      read those two PRs directly: the
       surviving instances cover dtype-size and reuse-budget terms, not
       draft-length or offload-layout terms.
 
@@ -416,12 +417,12 @@ patterns:
     notes: >
       Release branches and rewrites can drop main-branch perf fixes; diff
       the hot-path file against main when a branch regresses vs main.
-      The host-bound-concurrency instance was removed on 2026-08-12 (nvbug
-      6192201 is a functional bug — an L0 pre-merge *test failure* on
-      `test_perf_sanity.py::test_e2e`). "Measure a regime that is not
-      noise-dominated" survives as triage advice above precisely because it
-      cost a real investigation; it just no longer has a performance-bug case
-      to cite.
+      The host-bound-concurrency instance (PR #14691) was removed on
+      2026-08-12: the fix only unwaives a perf-sanity test and raises its
+      concurrency from 64 to 256, a test-config change with no product code
+      touched. "Measure a regime that is not noise-dominated" survives as
+      triage advice above precisely because it cost a real investigation; it
+      just no longer has a product-fix case to cite.
 
   - id: pattern-variant-misroute
     name: Config validation/normalization routes to a slower implementation variant
@@ -435,12 +436,12 @@ patterns:
       Normalizers that "promote" degenerate configs (e.g. topK=1 → dynamic
       tree) can select a semantically-equivalent but slower worker/kernel.
       That topK=1 → dynamic-tree example was this pattern's third instance
-      (EAGLE3, PR #15842) until 2026-08-12: nvbug 6394425 is a functional
-      bug, and per the NVBug the dynamic-tree path ignores
-      temperature/top_k/top_p and always takes `argmax(softmax(logits))` — a
-      sampling divergence, with the ~0.6× speed a side effect. It stays here
-      as the pattern's clearest *illustration* while no longer being a perf
-      precedent.
+      (EAGLE3, PR #15842) until 2026-08-12: the PR describes the dynamic-tree
+      worker's step-0 tree mask, KV rewind and bookkeeping diverging
+      numerically from the linear chain and lowering acceptance length — a
+      correctness/acceptance fix with no throughput number stated. It stays
+      here as the pattern's clearest *illustration* while no longer being a
+      perf precedent.
 
   - id: pattern-pinned-dep-holds-kernel-perf
     name: A pinned dependency holds back kernel performance until its bump is ported
@@ -477,8 +478,8 @@ patterns:
       the GPU is genuinely busy producing a result nobody reads. `torch.zeros` is
       the safe-looking default, so the fill hides in an allocator rather than in
       any model op, and shows up in a trace as large unattributable `FillFunctor`
-      / elementwise kernels sized to a workspace (43% of a context block in the
-      instance). Two triage notes. The bug will often be filed as a REGRESSION
+      / elementwise kernels sized to a workspace. Two triage notes. It will
+      often be reported as a REGRESSION
       because an unfamiliar large kernel appeared in a profile — confirm a bisect
       exists before believing that. And the change is symmetric and untested in
       both directions: `zeros`→`empty` is a silent win, `empty`→`zeros` a silent

@@ -22,14 +22,11 @@ failed_prs: []
 
 - **Provenance:** nvbugs `5631254`, `5631229`, `5650079` · commit `8bd779171e99` ·
   PR #9135 — "[https://nvbugs/5631254][fix] avoid torch.compile for multiple
-  times". Three bugs, one three-line root cause, one PR — so one case: a
-  DeepSeek-R1 FP4 performance regression (5631254), the same on FP8 (5631229),
-  and a DeepSeek-R1 performance drop on `main` attributed to torch.compile ops
-  (5650079).
-- **Symptom:** DeepSeek-R1 throughput drops on both FP4 and FP8. **The PR body is
-  empty and states no symptom, no number, no model config and no hardware** — the
-  magnitude has to come from the three bugs, and 5650079 is the one that names
-  the mechanism outright: a performance drop caused by torch.compile ops.
+  times". One three-line root cause, one PR — so one case.
+- **Symptom:** per-call host overhead on the hot path of every op wrapped by
+  `maybe_compile`. **The PR body is empty and states no symptom, no number, no
+  model config and no hardware** — its only description is the CodeRabbit
+  summary, "reducing repeated compilation overhead".
 - **Root cause:** the `maybe_compile` decorator added in PR #8708 built its
   compiled artifact **inside** the wrapper body:
 
@@ -47,7 +44,8 @@ failed_prs: []
   affected call sites are `tensorrt_llm/_torch/modules/attention.py` L79-85
   (invoked from L1324, L1439, L1534, L1593), `layer_norm.py:70`, and
   `sparse/dsa.py:671` — i.e. MLA attention, layer norm, and the DSA sparse path,
-  which is why one three-line defect moved DeepSeek-R1 in both precisions.
+  which is why one three-line defect touches several modules of a DeepSeek-style
+  model at once, independent of precision.
 - **How introduced:** `prior-fix-side-effect`. `maybe_compile` exists only because
   PR #8708 needed to make the compile conditional (see
   `case-piecewise-attention-torch-compile-host-overhead`); the conditional was
@@ -79,5 +77,5 @@ failed_prs: []
   path. Read with `case-piecewise-attention-torch-compile-host-overhead` (the PR
   that created this helper) and
   `case-mla-chunked-prefill-maybe-compiled-cat-warmup` (the warmup gap on the same
-  op): one helper, three separate performance bugs, landing October →
+  op): one helper, three separate performance defects, landing October →
   November 2025 → March 2026.

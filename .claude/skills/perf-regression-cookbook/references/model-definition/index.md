@@ -34,5 +34,5 @@ true for this config, and what the model constructs at load time.
 | Case | Symptom (signal) | Class |
 |------|------------------|-------|
 | [LTX-2 stage-2 BF16 LoRA restore runs the slow on-the-fly subtract path](ltx2-bf16-lora-restore.md) | stage-2 restore takes the subtract path when `_should_save_bf16_weights()` is false (115.0 GiB free-memory threshold); no percentage stated | fast-path-fallback |
-| [Mamba2 selective-state-update falls back on a too-narrow head_group_ratio allowlist](mamba2-flashinfer-head-group-ratio-gate.md) | nemotron_3_ultra_550b_nvfp4 13–15% on B200, +21.9% Inference Time / −17.9% throughput on GB200, 7.31% on GB300; allowlist `[1, 8, 16]` | fast-path-fallback |
+| [Mamba2 selective-state-update falls back on a too-narrow head_group_ratio allowlist](mamba2-flashinfer-head-group-ratio-gate.md) | NT3 NVFP4 perf regression on Blackwell; allowlist `[1, 8, 16]` sends decode to the native kernel | fast-path-fallback |
 | [VLM vision tower loaded for a text-only benchmark, shrinking the KV pool](vlm-vision-tower-loaded-for-text-only-bench.md) | ~7.5% on `qwen3.5_9b…input_output_len:500,2000` (L40S); KV pool 22.55 → 21.69 GiB, ~0.86 GiB of vision-tower weights | memory-footprint-regression |

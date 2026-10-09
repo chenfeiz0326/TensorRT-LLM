@@ -14,9 +14,9 @@ loss is time or capacity, because the two point at opposite ends of the file.
 ## Recurring patterns in this module
 
 - **Kernel swap regressed / below an alternative** — a quantize kernel loses to
-  the equivalent library implementation across a whole shape sweep, with no
-  culprit commit and no end-to-end number attached. That is still a real
-  deficit; record it from the microbenchmark and do not manufacture an e2e delta.
+  the equivalent library implementation, with no culprit commit and no
+  end-to-end number attached. That is still a real deficit; record it from a
+  microbenchmark and do not manufacture an e2e delta.
   _(Instance: FP8 per-tensor quantization slower than TE's on H100.)_
 - **Unaccounted startup residency** — the KV pool is sized from *free* GPU
   memory, so anything resident before that probe comes off capacity 1:1. An
@@ -29,5 +29,5 @@ loss is time or capacity, because the two point at opposite ends of the file.
 
 | Case | Symptom (signal) | Class |
 |------|------------------|-------|
-| [Import-time DeepGEMM PDL init creates a CUDA context, shrinking the KV pool](deepgemm-pdl-import-time-cuda-context.md) | `kv_cache_size` down 6–15% across models; −8.99% output token throughput on `k25_thinking_fp4_dep4_8k1k-con256` (GB200) | memory-footprint-regression |
-| [Native FP8 per-tensor quantization kernel slower than TE's](fp8-pertensor-quant-slower-than-te.md) | TE wins all 30 benchmarked shapes, 0.68×–0.88×; no e2e delta stated | kernel-selection-regression |
+| [Import-time DeepGEMM PDL init creates a CUDA context, shrinking the KV pool](deepgemm-pdl-import-time-cuda-context.md) | `kv_cache_size` down 6–15% in 1.3.0rc20; ~10% throughput on `llama_v3.3_nemotron_super_49b_fp8` (RTX 6000D) | memory-footprint-regression |
+| [Native FP8 per-tensor quantization kernel slower than TE's](fp8-pertensor-quant-slower-than-te.md) | slower than TE's equivalent kernel on H100; no magnitude or e2e delta stated | kernel-selection-regression |

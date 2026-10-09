@@ -32,7 +32,7 @@ failed_prs: []
   K-cache into a `kv_factor` multiplied by the KV-cache dtype size, counting
   the UINT8 indexer pool at 2 bytes/element (BF16). The C++ allocator counts it
   per-pool at 1 byte, so the Python estimate overstated bytes/token
-  (110,448 vs 100,152 for the bug's config — a phantom 10,296 B/token) and the
+  (110,448 vs 100,152 for the PR's GLM-5 config — a phantom 10,296 B/token) and the
   planner sized the pool for ~10% fewer tokens than actually fit.
 - **How introduced:** PR #13745 (commit `13ca44a117`, Gemma4 multi-head_dim
   pools) changed `cacheSizeBytes` in

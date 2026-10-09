@@ -23,13 +23,10 @@ failed_prs: []
 - **Provenance:** nvbug `6404567` · commit `459839cc271f` · PR #16256 — "Clamp
   piecewise cudagraph captures to the reachable ceiling instead of
   force-appending it".
-- **Symptom:** `gpt-oss-120b` non-disaggregated IFB serving on GB300-NVL72
-  (72× TP1 `trtllm-serve` replicas, aarch64) lost ~12% throughput, with TTFT
-  more than doubling and TPOT up ~7%, moving only from the `1.3.0rc14`
-  container to `1.3.0rc15` — no change to model, config, hardware or client.
-  The shift is fully introduced at the rc14→rc15 step and persists unchanged
-  through rc16/rc17/rc20 and main. Surfaced as a customer report,
-  not a perf CI bar. PR #16256's GB300 A/B (4× TP1 servers, 896 concurrent
+- **Symptom:** `gpt-oss-120b` serving on GB300 lost ~12% QPS, with TTFT
+  more than doubling at high concurrency (per PR #16256), first shipped in
+  `1.3.0rc15` and still present on main at fix time. Not caught by a perf CI
+  bar. PR #16256's GB300 A/B (4× TP1 servers, 896 concurrent
   streams/server, 24000 requests per arm, steady-window aggregates): rc14
   51.40 QPS / 55.4 ms TPOT vs rc15–rc20/main stock 44.3–44.7 QPS /
   64–65 ms TPOT.
@@ -38,7 +35,7 @@ failed_prs: []
   (`max_batch_size * (max_seq_len - 1 - num_extra_decoding_steps)`) to the
   user's `torch_compile_config.capture_num_tokens` list. Runtime padding
   rounds each context-bearing iteration up to the nearest captured size, so
-  with the bug's config — a user list topping out at 13914 and a ceiling of
+  with the affected serving config — a user list topping out at 13914 and a ceiling of
   65536 — every iteration in the (13914, 65536] token gap executed the full
   65536-token graph. Per the PR, measured per-iteration device time is flat
   ~325–400 ms against 116–408 ms for true-size eager (up to 2.8×), i.e. the
@@ -52,8 +49,7 @@ failed_prs: []
   That fix did two things: (a) drop capture candidates above the reachable
   ceiling, and (b) force-append the ceiling itself so token counts in the gap
   below it would get *a* graph. Half (a) was correct; half (b) is this
-  regression. Named as the culprit in the fix PR's description and in the
-  NVBug.
+  regression. Named as the culprit in the fix PR's description.
 - **Fix mechanism:** replace drop-and-append with **clamping** in
   `_filter_piecewise_capture_num_tokens`
   (`tensorrt_llm/_torch/pyexecutor/model_engine.py`): candidates above the
@@ -74,9 +70,9 @@ failed_prs: []
   — and on affected builds
   `grep "exceeds reachable ceiling" <serve log>`, whose pre-fix wording
   ("Capturing the ceiling itself") names the injected entry outright. A/B
-  confirmation both ways is cheap and was done on this bug: adding 65536 to
-  rc14's list reproduces the full regression, and neutralizing the appended
-  65536 on rc15/rc20 restores rc14-level QPS/TTFT/TPOT.
+  confirmation both ways is cheap: add the far ceiling to a last-good build's
+  list and check that it reproduces the drop, and neutralize the appended
+  entry on a bad build and check that it recovers.
 - **Prevention/guard:** PR #16256 added two unit tests to
   `tests/unittest/llmapi/test_llm_args.py::TestPiecewiseCudaGraphCaptureDefaults`
   — one pinning the exact 6404567 shape (a far ceiling is never invented) and

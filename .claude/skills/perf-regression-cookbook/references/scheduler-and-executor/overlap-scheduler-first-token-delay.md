@@ -21,19 +21,12 @@ failed_prs: []
 > Part of the [Scheduler & executor regression cookbook](index.md) · schema: [case-template](../case-template.md)
 
 - **Provenance:** nvbug `5615248` · commit `cf87a8beaa8e` · PR #14061 —
-  "[perf] Early emission of first token with overlap scheduling". Split from
-  umbrella nvbug 5615248 (a TTFT perf bug also covering beam-search handoff
-  and piecewise-cudagraph fixes in separate commits); this case covers only
-  the overlap-scheduling first-token emission commit.
+  "[perf] Early emission of first token with overlap scheduling". The same bug
+  id also appears on the beam-search handoff and piecewise-cudagraph PRs
+  (#13748, #13799, #13574); this case covers only the overlap-scheduling
+  first-token emission commit.
 - **Failed attempts:** none as PRs (`failed_prs: []` — `gh pr list --search
-  5615248 --state all` returns only merged fixes). The umbrella bug's two
-  abandoned kernel-side branch experiments (`o_proj` GEMM tuning and a
-  megakernel) are recorded once, on the sibling case
-  [beam-search host handoff](../sampler/beam-search-host-handoff.md); they apply here too,
-  because, per the same NVBug, they went nowhere for one reason: prefill for
-  such a small model is launch-bound (with Python), and host work for the
-  forward spans almost all of the GPU work. On this workload the lever is
-  host-side ordering, which is exactly what this fix changes.
+  5615248 --state all` returns only merged fixes).
 - **Symptom:** Elevated TTFT under the overlap scheduler: the first-token
   response is enqueued only after `sample_async` of the *next* step, so the
   first token waits behind host-side sampling dispatch. Per the PR, this is

@@ -43,11 +43,8 @@ Match on these transferable failure modes, not on a case title.
   those. _(Instance: [DeepGEMM paged_mqa_logits prewarm](deepgemm-paged-mqa-logits-prewarm.md)
   — CUDA-graph warmup touches only `cuda_graph_batch_sizes`, leaving the other
   32-aligned buckets to compile on live traffic.
-  A general memory-pool warmup sibling (PR #10340) was removed on 2026-08-12:
-  its nvbug 5820734 is a functional bug, an L0 post-merge accuracy failure in
-  `accuracy/test_llm_api_pytorch.py`. Per `data/removed.yaml`, the removing pass
-  first cited "6108808" for it — an unrelated, non-TensorRT-LLM bug; the
-  conclusion held on 5820734, the id did not.)_
+  A general memory-pool warmup sibling (PR #10340, nvbug 5820734) was removed
+  on 2026-08-12: the PR describes a peak-memory fix, not a varying metric.)_
 - **Warmup path mismatch** — warmup ran, but the served path (`image=None` vs
   `image=…`, T2V vs I2V, cached-kv vs no-cache) is a different sub-graph or
   shape, so the compiled artifact is invalidated. Check every served forward
@@ -61,13 +58,13 @@ Match on these transferable failure modes, not on a case title.
   _(Instance: [KV-aware ADP cold start](kv-aware-adp-cold-start.md).)_
 
 One further pattern of this module, `pattern-warmup-sizing-tradeoff`, has **no
-instance here since 2026-08-12** and so is not listed above: the cap-side case's
-bug 5805494 is a functional bug (an int32 overflow / IMA at the 16384-token
-warmup shape, i.e. a crash). The *other* end of the tradeoff is a live case in
-the regression cookbook —
-`perf-regression-cookbook/references/kernel-and-fusion/warmup-token-cap-revert.md`,
-nvbug 6185713, a performance bug — and `data/removed.yaml` records that PR
-#15887 has since removed the overflow at source. Read both before
+instance here since 2026-08-12** and so is not listed above: the cap-side
+case's fix PR #13758 (nvbug 5805494) describes an int32 overflow / IMA at the
+16384-token warmup shape, i.e. a crash. The *other* end of the tradeoff is a
+live case in the regression cookbook —
+`perf-regression-cookbook/references/kernel-and-fusion/warmup-token-cap-revert.md`
+(PR #14252, nvbug 6185713) — and `data/removed.yaml` records that PR #15887 has
+since removed the overflow at source. Read both before
 re-introducing any global warmup cap; prefer per-op clamps.
 
 ## Cases

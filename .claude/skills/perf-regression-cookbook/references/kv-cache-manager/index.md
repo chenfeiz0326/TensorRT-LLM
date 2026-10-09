@@ -21,10 +21,11 @@ defect leaves per-step GPU time flat.
   allocation.
   _(Instances: the DSA indexer K-cache counted at KV dtype size; the
   MAX_UTILIZATION reuse token budget. Two spec-decode siblings — EAGLE3 draft KV
-  over-allocated by `max_draft_len×` (nvbug 6269778) and host KV budget
-  double-counted with offloading (nvbug 6035425) — were removed on 2026-08-12 as
-  functional bugs. They are real accounting defects of exactly this shape; read
-  those bugs directly if you are auditing spec-decode KV sizing, because the
+  over-allocated by `max_draft_len×` (PR #15017) and host KV budget
+  double-counted with offloading (PR #13130) — were removed on 2026-08-12
+  because their PRs describe memory over-allocation fixes and state no perf
+  symptom. They are real accounting defects of exactly this shape; read those
+  PRs directly if you are auditing spec-decode KV sizing, because the
   surviving cases cover dtype-size and reuse-budget terms only.)_
 - **Per-step sync added** — cache management runs inside decode preparation, so
   a per-slot device→host read added there is paid every iteration. The trace
@@ -43,6 +44,6 @@ defect leaves per-step GPU time flat.
 | Case | Symptom (signal) | Class |
 |------|------------------|-------|
 | [DSA indexer K-cache counted at KV dtype size, shrinking the KV pool](dsa-kcache-dtype-size-estimate.md) | paged KV cache 147.32 → 133.44 GiB on GLM-5 FP8; primary blocks 44708 → 49324 (~10%) with the fix | capacity-accounting-error |
-| [Mamba-hybrid prefix caching added per-slot D2H syncs to decode prep](mamba-hybrid-recurrent-state-d2h-syncs.md) | Nemotron-Nano-12B-v2 on B300: Inference Time +23.66%, Output Token Time +27.02%; memcpy+sync pairs per iteration | sync-introduced, host-work-added |
-| [MAX_UTILIZATION reuse token budget under-credits cached blocks](max-utilization-reuse-token-budget.md) | prefill batches smaller than expected with block reuse on; p95 TTFT 4.943 s with 4.873 s inside the prefill engine | capacity-accounting-error, scheduler-batching-regression |
-| [Qwen3.5 GDN state cache allocated in fp32, disabling the bf16-state decode kernel](qwen35-ssm-cache-fp32-fallback.md) | `qwen3_5_397b_fp4_dep4_1k1k` output token throughput 25435.9 → 20479.4 tok/s (−19.5%) | fast-path-fallback |
+| [Mamba-hybrid prefix caching added per-slot D2H syncs to decode prep](mamba-hybrid-recurrent-state-d2h-syncs.md) | `numGenReq × (1 + max_draft_len)` memcpy+sync pairs per iteration in `_prepare_inputs` (PR #14003 nsys) | sync-introduced, host-work-added |
+| [MAX_UTILIZATION reuse token budget under-credits cached blocks](max-utilization-reuse-token-budget.md) | prefill batches smaller than expected with block reuse on; context requests serialize to ~1/iter, inflating TTFT (#15065) | capacity-accounting-error, scheduler-batching-regression |
+| [Qwen3.5 GDN state cache allocated in fp32, disabling the bf16-state decode kernel](qwen35-ssm-cache-fp32-fallback.md) | ~20% serving throughput loss (fix diff's docstring) | fast-path-fallback |

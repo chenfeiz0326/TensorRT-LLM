@@ -23,9 +23,8 @@ failed_prs: []
 - **Provenance:** nvbug `5963665` · commit `a0b53e66a6f3` · PR #12407 —
   "[https://nvbugs/5963665][refactor] Refactor warmup orchestration in
   ModelEngine".
-- **Symptom:** GB200 disagg `ctx_only` perf regressions in the L0 post-merge
-  perf CI on `main`. **The PR states no symptom and no number** —
-  it is filed as a refactor. Read the diff, not the title: the refactor fixes
+- **Symptom:** **The PR states no symptom and no number** — it is filed as a
+  refactor. Read the diff, not the title: the refactor fixes
   three independent defects, and a reader who trusts the `[refactor]` tag will
   skip the case entirely.
 - **Root cause:** three defects in one warmup path, all in

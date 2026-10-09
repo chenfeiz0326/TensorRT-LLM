@@ -28,37 +28,27 @@ failed_prs: []
   **This feature has landed and been reverted twice**, with all four PRs
   carrying the same title: #14378 (`50ca49f8c53d`, 2026-05-28) reverted by
   #14782 (2026-06-01), then #15654 (`48fc7537baf0`, 2026-07-03) reverted by
-  #15961 (2026-07-06). Both landings were security hardening (`5972776` and
-  `6208457`), so neither is in `nvbugs:`: they motivated the culprit, they
-  are not the regression. Round 1's own observable, `6244695` (the
-  post-merge perf test failing with `BlockingIOError`), is a functional bug
-  and likewise stays out of the frontmatter; `6388787` is the only
-  performance bug, and it is the one #15961's title cites.
+  #15961 (2026-07-06). The two landings carry their own ids in their titles
+  (`5972776` on #14378, `6208457` on #15654) and are security hardening —
+  #14378 says it "prevents another process to steal HMAC key from the
+  environment variable" — so neither is in `nvbugs:`: they motivated the
+  culprit, they are not the regression. The round-1 revert #14782 cites
+  `6244695`; `6388787` is the id #15961's title cites.
 - **Symptom:** two shapes, and the second is the dangerous one.
-  **Round 1 failed loudly** — `BlockingIOError: [Errno 11] Resource
-  temporarily unavailable` out of
+  **Round 1 failed loudly** — per #15961's history table, `BlockingIOError:
+  [Errno 11]` out of
   `executor/utils.py:_read_spawn_proxy_process_ipc_hmac_key_fd`, so the perf
-  test errored out and was diagnosed in days. **Round 2 failed silently**: the
-  benchmark hung for 30–90 min with no output after
-  `[llmapi] start MpiSession with <N> workers`, all N workers alive at 0% GPU
-  utilization and ~4 MiB VRAM, until the harness stall-timeout killed it.
-  Reported as a *perf regression* from the deepseek_v3.2_fp4 GB300 QA sweep
-  (`6388787`, a Total_Token_Throughput regression against 1.3.0rc17) — the
-  bar tripped and a percentage was quoted, because a truncated or absent run
-  reaches the comparison as a degraded number, not as an error. The same
-  window also surfaced as a functional timeout: `6435109`, a functional bug
-  in which Disagg-PerfSanity GB200 stages time out because the ctx/gen
-  `trtllm-serve` never becomes ready — it names the mechanism outright.
-  A fourth shape is quoted in #15961's own description: the
+  test errored out. **Round 2 failed silently** (per #15961): `trtllm-bench`
+  emitted no further stdout for ~30 min after
+  `[llmapi] start MpiSession with <N> workers`, all workers alive at 0% GPU
+  and 4 MiB VRAM, no exception, no MPI abort, until the perf harness
+  SIGKILLed it at `_STALL_TIMEOUT=1800s`. A truncated or absent run like this
+  can reach a perf comparison as a degraded number rather than as an error,
+  which is how a startup deadlock gets read as a perf regression.
+  The serve-side shape is also quoted in #15961's own description: the
   `nemotron_3_ultra_550b_nvfp4-serve` `/health` endpoint "did not become ready
   within 3600s" on **both** baseline and candidate wheels on 2026-07-05 — the
   tell that this is not a candidate-vs-baseline delta at all.
-  **6388787 is a two-root-cause bug and the two must not be folded:** its other
-  root cause is a DeepGEMM warmup-bucket hole fixed by PR #16178, recorded
-  separately in the instability cookbook
-  (`references/warmup-and-jit/deepgemm-paged-mqa-logits-prewarm.md`). #15961 and
-  #16178 share no files; each is a fix for one of the two mechanisms, and
-  neither is a failed attempt at the other.
 - **Root cause:** the HMAC key was advertised to the child through an inherited
   file descriptor (env var `TLLM_SPAWN_PROXY_PROCESS_IPC_HMAC_KEY_FD`), but the
   perf harness spawns the server via

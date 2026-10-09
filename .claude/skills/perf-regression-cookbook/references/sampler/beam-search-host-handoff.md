@@ -23,24 +23,16 @@ failed_prs: []
 - **Provenance:** nvbug `5615248` · commit `755d38849563` · PR #13748 —
   Reduce beam-search prefill->decode handoff cost;
   related: nvbug `5615248` · commit `371c12662eca` · PR #13799 —
-  Beam history copies only on terminal steps. (Split from umbrella nvbug
-  5615248: the two beam-search host-cost commits only.)
-- **Failed attempts:** none as PRs (`failed_prs: []` — no PR was ever opened
-  and closed against this bug). Per the NVBug, two kernel-side experiments were
-  tried on personal branches and abandoned before any PR: a GEMM-tuning branch
-  identified and adopted the faster GEMM kernel TRT picks for `o_proj`, but it
-  made no visible difference in E2E latency because GPU work was not the
-  bottleneck; and a megakernel branch was not yet performant and needed more
-  tuning. Both are evidence for the diagnosis rather than against it: on this
-  workload the bottleneck is host-side, so kernel-level tuning is the wrong
-  lever and should not be re-proposed.
+  Beam history copies only on terminal steps. (This case covers the two
+  beam-search host-cost commits only.)
+- **Failed attempts:** none as PRs (`failed_prs: []`).
 - **Symptom:** Elevated TTFT/E2E for beam-search serving (ITL impact
   negligible in the PRs' measurements). Measured on
   TinyLlama-1.1B-Chat-v1.0, L40S, ISL=100/OSL=20, beam_width=10,
   max_batch_size=1, piecewise CUDA graphs (PR #13799 workload); PR #13748
   reports TTFT -2.13% mean after fix, PR #13799 reports TTFT -0.092 ms and
-  E2E -0.448 ms median. Surfaced via nvbug perf investigation with a repro
-  bench on a personal branch.
+  E2E -0.448 ms median. PR #13799 notes that its bench harness lives on a
+  companion validation branch, kept off the PR.
 - **Root cause:** Two host-cost sources in the TorchSampler beam-search path:
   (1) the prefill->decode handoff and per-step sampling launched many
   redundant small kernels — indexed assigns for seven beam-buffer resets in

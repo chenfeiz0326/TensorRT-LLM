@@ -149,52 +149,53 @@ the no-match rate is the cookbook's coverage metric for maintainers.
 
 ## Corpus & provenance
 
-- Source: TensorRT-LLM `main`, perf-instability-tagged commits identified from
-  the internal `PERF_RELATED_COMMITS.md` catalog's "Perf-Instability
-  Mitigations" section. Window: 2026-02 → 2026-07, extended to **2026-08** by a
-  second, independent sweep of the trailing year's merged PRs (2026-08-12);
+- Source: TensorRT-LLM `main`, commits whose subject or PR describes a
+  perf-instability mitigation (warmup / JIT coverage, opportunistic-collective
+  fallbacks, determinism knobs, perf-harness races), classified from their PR
+  descriptions and diffs. Window: 2026-02 → 2026-07, extended to **2026-08** by
+  a second, independent sweep of the trailing year's merged PRs (2026-08-12);
   three of that sweep's candidates are cases here, and the rest are recorded in
   `data/pending.yaml` or `data/removed.yaml` with their reason.
-- Current corpus (2026-08-12): **17 confirmed cases** across 4 families, from
-  ~36 catalog candidate PRs (~10 excluded as accuracy-only, functional-only, or
-  pure optimizations rather than instability mitigations) plus the 2026-08
-  PR-sweep additions and the same-day NVBug coverage backfill (which added
-  `ignore-eos-with-spec-decoding`; its other 17 findings were regressions).
+- Current corpus (2026-08-12): **17 confirmed cases** across 5 modules, from
+  ~36 candidate PRs (~10 excluded as accuracy-only, functional-only, or pure
+  optimizations rather than instability mitigations) plus the 2026-08 PR-sweep
+  additions and `ignore-eos-with-spec-decoding`.
 - **Half the corpus did not survive its own evidence audit: 13 of the original
-  26 cases were removed or moved on 2026-08-12**, after checking each bug's
-  severity — whether it was filed as a performance bug at all, the
-  authoritative perf-vs-functional discriminator (the bug's category records
-  where the code lives, not what kind of problem it is).
-  That ratio is the single most useful fact in this file: a commit-catalog sweep
-  over warmup / collective / determinism paths selects for *mechanisms that
-  could* destabilize a metric, and roughly half of them turn out to have no
-  varying metric anywhere in the underlying bug. Ten were removed outright and
-  three were moved to the regression cookbook; every removal left its mechanism
-  prose behind in `data/patterns.yaml` or the family `index.md`, and the full
-  list with per-case reasons is in `data/removed.yaml`.
-  - **Not perf bugs at all** (filed as functional bugs or crashes):
-    5955765 (`warmup-more-accurate-launch-params`), 6248837
-    (`trtllmgen-fmha-densify-grid`), 6191524
-    (`mla-cached-kv-maybe-compiled-cat-warmup`), 6108808
-    (`general-warmup-memory-pool`), 5805494
+  26 cases were removed or moved on 2026-08-12**, after re-reading each fix
+  PR's description and diff for a metric that actually *varies*.
+  That ratio is the single most useful fact in this file: a commit sweep over
+  warmup / collective / determinism paths selects for *mechanisms that could*
+  destabilize a metric, and roughly half of them turn out to have no varying
+  metric anywhere in the fix PR. Ten were removed outright and three were moved
+  to the regression cookbook; every removal left its mechanism prose behind in
+  `data/patterns.yaml` or the module `index.md`, and the full list with
+  per-case reasons is in `data/removed.yaml`.
+  - **The fix PR describes a non-perf defect** (a crash, hang, memory or
+    accuracy fix, or a test-isolation fix): PR #13078 / 5955765
+    (`warmup-more-accurate-launch-params`), PR #14536 / 6191524
+    (`mla-cached-kv-maybe-compiled-cat-warmup` — a recompile that tripped the
+    hang detector), PR #10340 / 5820734 (`general-warmup-memory-pool` — a
+    peak-memory fix), PR #13758 / 5805494
     (`warmup-token-cap-protect-autotuner` — an int32 overflow / IMA at the
-    16384-token warmup shape, i.e. a crash), 5923949 + 5803120
-    (`nccl-library-load-stability`, `nccl-symmetric-fallback-long-context` — a
-    load-time segfault and a deterministic library mismatch), and 5680911 /
-    5698292 / 5710045 / 5758449 (`single-process-mode-env-cache` — unit tests
-    silently no-op'ing).
-  - **Not perf-instability, and no bug required to see it**:
+    16384-token warmup shape, i.e. a crash), PR #12015 / 5923949
+    (`nccl-library-load-stability` — a load-time segfault on NCCL version
+    mismatch), and PR #10730 / 5680911
+    (`single-process-mode-env-cache` — unit tests silently no-op'ing).
+  - **Not perf-instability**: `nccl-symmetric-fallback-long-context` (PR #11870
+    — a hang that "consistently fails around round 30-40"),
+    `trtllmgen-fmha-densify-grid` (PR #15305 — a warmup-grid hole for one
+    narrow seqlen range, a deterministic coverage miss, now a regression case),
     `visual-gen-warmup-cache-key` (the observable was a spurious "not warmed
     up" WARNING, the recompile only ever *potential*) and
     `beam-search-logprobs-nondeterminism` (PR #15125 — an *output*-correctness
     defect: wrong `log_probs` varying with batch drain order, no perf metric
     anywhere, and it had been filed under `pattern-metric-with-hidden-rng`
     despite containing no RNG).
-  - **Genuine perf regressions misfiled as instability**, moved to the
-    regression cookbook: 6185713 (`warmup-token-cap-revert`, a >10 % disagg
-    throughput drop), 6185446 (`trtllmgen-fmha-jit-warmup`), and 5823212
-    (`mla-chunked-prefill-maybe-compiled-cat-warmup`, a bisected performance
-    regression of +9–27 % gpu_time on five GPU types).
+  - **Perf regressions misfiled as instability**, moved to the regression
+    cookbook: `warmup-token-cap-revert` (PR #14252), `trtllmgen-fmha-jit-warmup`
+    (PR #14851), and `mla-chunked-prefill-maybe-compiled-cat-warmup`
+    (PRs #11743 / #11744 — a `torch.compile` paid once per process on a branch
+    the warmup never enters).
   Read the whole bullet as two rules. First: "the symptom looked intermittent"
   is not evidence of an instability bug — a JIT or compile stall that fires on
   every cold start is a deterministic regression that merely *presents* as
@@ -204,39 +205,31 @@ the no-match rate is the cookbook's coverage metric for maintainers.
   segfault, a hang and a wrong output are all "flaky-looking" and none of them
   is a perf instability; require a metric that *varies* across otherwise
   identical runs.
-- Every case carries `commits:`, `success_prs:`, `failed_prs:` frontmatter (and
-  `nvbugs:` when the fix PR or the bug names one) — the complete provenance for
-  that mitigation. Patterns aggregate provenance transitively through their
+- Every case carries `commits:`, `success_prs:`, `failed_prs:` and `nvbugs:`
+  (bare IDs, possibly empty) frontmatter — the complete provenance for that
+  mitigation. Patterns aggregate provenance transitively through their
   `instances:` list.
 - **`failed_prs:` is the half to read before proposing a mitigation.** It lists
-  the attempts on the same NVBug that did *not* land, with the reason in the
+  the attempts at the same mitigation that did *not* land, with the reason in the
   case's **Failed attempts** bullet. For instability the two recurring rejection
-  reasons are the ones `PERF_REVIEW.md` names as anti-patterns: the attempt
+  reasons are both review anti-patterns: the attempt
   *diluted* the variance (raised a CV tolerance, inflated `run_count`, widened a
   timeout) or *removed the signal* (waived / deprecated the case off the perf
   list) instead of removing the variance. `success_prs:` is what merged; an
   attempt still open is in neither list, because a case means "a mitigation is
-  on `main`". Both cookbooks record only NVBugs with a valid, merged fix PR — a
+  on `main`". Both cookbooks record only instabilities with a merged fix PR — a
   confirmed instability with no landed mitigation is not recorded at all, since
   a case exists to be cited for its **Fix mechanism**.
-- **14 of the 17 cases carry no `nvbugs:`** — the corpus was built
-  from a commit catalog, and those mitigations' PRs name no bug. (That is not a
-  contradiction of the audit above: severity could only disqualify the cases
-  that *had* a bug id to check, which is why the survivors skew bug-less.) The
-  2026-08 additions kept the skew for a sharper reason: #16717's PR title *does*
-  name 6487040 / 6487036, but both are functional bugs, so they are cited in
-  the case's prose and deliberately kept out of `nvbugs:` — naming a bug is not
-  the same as qualifying it. An NVBug-first sweep (filtered to
-  performance-severity items above a recent id floor, with
-  `regression`/`unstable`/`flutter` in the title, 2026-08-11) resolved none of
-  the 11: their bugs either predate that floor, were not filed at performance
-  severity, or do not exist. Do **not** back-fill one from a PR-number
-  coincidence — the same PR
-  can be a *culprit* on one bug and a fix on another (#13505 is both), and
-  culprit-for-fix is the dominant false positive in this kind of match.
-- Verdicts were established from **PR descriptions + diffs only**; NVBug
-  *history* was deliberately not read. Future deep-dives can start from any
-  case's `nvbugs:` IDs.
+- **13 of the 17 cases carry no `nvbugs:`** — the corpus was built from
+  commits on `main`, and those mitigations' PRs are titled `[None]` or against
+  a JIRA / GitHub issue. The 4 that carry one are
+  `deepgemm-paged-mqa-logits-prewarm`, `force-num-accepted-tokens-in-spec-perf-test`,
+  `gen-only-log-flush-sentinel` and `ignore-eos-with-spec-decoding`. Do **not**
+  back-fill an ID from a PR-number coincidence — the same PR can be a *culprit*
+  for one defect and a fix for another (#13505 is both), and culprit-for-fix is
+  the dominant false positive in this kind of match.
+- Verdicts are established from **public PR descriptions, commits, diffs and
+  GitHub issues only**. `nvbugs:` IDs are pointers, not evidence.
 - Commits whose PR description was too unclear to confirm as instability
   mitigations (as opposed to functional / accuracy fixes) but which touch
   warmup / collective / determinism paths are parked in `data/pending.yaml`
@@ -351,9 +344,11 @@ signature)**, **Root cause**, **How introduced**, **Fix mechanism**,
    in this cookbook is still valid — create the directory and its `index.md`.
 4. Keep the anti-fabrication rules of the template; if the evidence is too
    thin, park it in `data/pending.yaml` instead.
-5. This cookbook ships in the public TensorRT-LLM repository. Cite an NVBug by
-   id and restate what it established in your own words; never copy its title
-   or comments, or name customers, people, status or priority values.
+5. This cookbook ships in the public TensorRT-LLM repository. Cite NVBugs by ID
+   only; every other fact (symptom numbers, bisect, root cause, verification)
+   must come from a public PR description, commit, diff, or GitHub issue. Never
+   copy or paraphrase NVBug descriptions, comments, titles, status, severity,
+   or people.
 
 ## Relationship to Other Skills
 

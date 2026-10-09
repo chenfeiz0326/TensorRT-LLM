@@ -22,19 +22,17 @@ failed_prs: []
 
 - **Provenance:** nvbug `5738737` · commit `696f754ef455` · PR #10120 —
   "[None][fix] avoid implicit cudaStreamSynchronize in sample_async." **The PR
-  names no bug**; the link comes from the bug, which names PR #10120 repeatedly
-  and attributes the root cause to a CUDA stream synchronization in the sampler.
-- **Symptom:** a Nemotron Nano v3 performance regression in online serving —
-  roughly a **3× drop** in output token throughput measured through
-  `trtllm-serve` with aiperf and
-  `python -m tensorrt_llm.serve.scripts.benchmark_serving`: **10,607.09 →
-  4,433.11 tokens/sec**. The bug names the culprit commit directly:
-  `02edb19f4302` (stop-words support), also filed upstream as
-  NVIDIA/TensorRT-LLM issue #9965. The PR's own justification is structural rather
-  than numeric — "Any cudaStreamSynchronize in `sample_async` will break the
-  overlap feature of overlap scheduler and pipeline parallelism" — with nsys
-  screenshots for "LLaMA 405B TP2PP2" and the author's explicit caveat "No e2e
-  perf data".
+  names no bug.** The public GitHub issue NVIDIA/TensorRT-LLM#9965 ("AutoDeploy:
+  track nano perf regression") carries the measurements and the bisect and
+  references nvbug `5738737`.
+- **Symptom:** a Nemotron Nano v3 ("nano3") serving performance regression —
+  roughly a **3× drop** in output token throughput at concurrency 384, ISL/OSL
+  1000/1000: **10,607.09 → 4,433.11 tokens/sec** (issue #9965). The issue bisects
+  it to `02edb19f4302` (PR #9514). The fix PR's own justification is structural
+  rather than numeric — "Any cudaStreamSynchronize in sample_async will break
+  the overlap feature of overlap scheduler and pipeline parallelism" — with nsys
+  screenshots for "LLaMA 405B TP2PP2" and the author's explicit caveat in the PR
+  thread, "No e2e perf data".
 - **Root cause:** the stop-words check `_are_stop_words` compared a candidate
   token window against each stop-word with `torch.equal(...)`. `torch.equal`
   returns a Python `bool`, so it must synchronize — **once per request, per beam,
@@ -44,11 +42,14 @@ failed_prs: []
   its own latency: it collapses the overlap scheduler's pipelining and PP's
   send/recv overlap, which is how a per-request check becomes a 3× throughput
   loss instead of a few microseconds.
-- **How introduced:** `new-feature` — stop-words support (`02edb19f4302`). The
-  feature is correct; the comparison idiom is what syncs. Note the resolution had
-  two halves: the culprit PR was **reverted** in PR #10002 and functional
-  stop-token support later re-landed in PR #10389, while #10120 is the PR that
-  removed the sync (per the NVBug). Cite #10120 for the mechanism.
+- **How introduced:** `new-feature` — PR #9514 (`02edb19f4302`, "add
+  eos_token_id in generation_config to sampling params"), which folds the
+  generation-config EOS ids into `_stop_word_ids`, so the stop-words check now
+  runs for ordinary requests. The feature is correct; the comparison idiom is
+  what syncs. Note the resolution had two halves: the culprit PR was
+  **reverted** in PR #10002 (issue #9965 calls it a temporary revert) and the
+  feature later re-landed in PR #10389, while #10120 is the PR that removed the
+  sync. Cite #10120 for the mechanism.
 - **Fix mechanism:** make the whole check device-resident. Stop-word lengths move
   through **pinned int32** memory with `non_blocking=True`; the comparison becomes
   an accumulation of `(truncated_seq == word[:L]).all()` on device; the Python

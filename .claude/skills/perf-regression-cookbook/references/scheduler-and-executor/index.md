@@ -32,6 +32,6 @@ and the gap grew, the defect is in this module, not in a kernel.
 
 | Case | Symptom (signal) | Class |
 |------|------------------|-------|
-| [Canceled request ids grow unbounded in the executor loop](canceled-req-ids-unbounded-growth.md) | gradual slowdown over a long DeepSeek 3.1 run; degradation is a slope, and the case states no magnitude | host-work-added |
-| [ModelEngine per-request attribute overhead in decode preparation](model-engine-per-request-attr-overhead.md) | GB200 gpt-oss-120b gen-only `mean_gen_worker_per_iter_device_step_time` 8.384 → 8.691 (bar 8.53755), 7.869 after the fix | host-work-added |
+| [Canceled request ids grow unbounded in the executor loop](canceled-req-ids-unbounded-growth.md) | gradual slowdown of a long-running server; degradation is a slope, and the case states no magnitude | host-work-added |
+| [ModelEngine per-request attribute overhead in decode preparation](model-engine-per-request-attr-overhead.md) | gpt-oss-120b gen-only `mean_gen_worker_per_iter_device_step_time` 8.384 → 8.691, 7.869 after the fix | host-work-added |
 | [Overlap scheduler delays the first token](overlap-scheduler-first-token-delay.md) | TTFT elevated with throughput unchanged; magnitude not quantified in the PR | scheduler-batching-regression |

@@ -26,10 +26,8 @@ failed_prs: []
   (`gpt_oss_fp4_dep4_1k8k-con2560_iter5_1k8k`, config
   `gpt_oss_120b_fp4_grace_blackwell.yaml`, `max_batch_size: 640`,
   padding-enabled CUDA graphs) regressed its metric after a default change;
-  surfaced via the perf-sanity CI bar. Output token throughput 87,321 →
-  80,554 tok/s (-7.8 %, per the NVBug; a re-run measured 88,908 →
-  80,208, -9.8 %), and the fix branch verified back at 88,984 vs 82,073 on
-  then-current main (+8.4 %, Mean TPOT 18.57 → 17.05 ms).
+  surfaced via the perf-sanity CI bar. The fix PR states no numbers, only
+  that "the test now has the same metric as before".
 - **Root cause:** PR #12895 changed the *default* padding-enabled CUDA-graph
   capture list in `CudaGraphConfig` (`tensorrt_llm/llmapi/llm_args.py`) from
   "multiples of 8 up to 128, then powers of two up to `max_batch_size`" to a
@@ -37,11 +35,11 @@ failed_prs: []
   established under the old implicit capture set (the fix restores that exact
   list; per the PR, "the test now has the same metric as before"). The new
   denser set was slower because the +64 stride introduces non-power-of-2
-  capture sizes above 128 (192, 320, 384, 448, 576), and per the NVBug
-  those pick worse CUTLASS GEMM tiles and a worse MoE all-to-all path:
-  `moeA2ACombineKernel` +41.1 %, swiGlu GEMM `t128x16x256` +52.7 %, attention
-  decode +12.0 %. So the padded graph itself is fine — the shape it pads *to*
-  is what the downstream kernels are tuned for.
+  capture sizes above 128 (192, 320, 384, 448, 576); padding a batch to one
+  of those rather than to a power of two changes the shape the downstream
+  GEMM, MoE all-to-all and attention kernels run at. So the padded graph
+  itself is fine — the shape it pads *to* is what the downstream kernels are
+  tuned for.
 - **How introduced:** commit `7e5275fc9175` / PR #12895 — "[perf] Use +64
   batch sizes for padding-enabled CUDA graphs" — a global default change
   intended as a perf improvement (per its `[perf]` tag) that regressed this

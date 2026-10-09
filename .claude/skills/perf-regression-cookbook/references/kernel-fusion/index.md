@@ -34,5 +34,5 @@ pattern above because no case in this module carries it._
 
 | Case | Symptom (signal) | Class |
 |------|------------------|-------|
-| [GPT-OSS linears hit `F.linear`'s extra bias memory copy on SM100+](flinear-bias-copy-sm100.md) | `Request Generation Tokens Per Second` 403.43 → 375.14 (−7.0%) on B200, TP1/BS1; affects `qkv_proj` and `o_proj` | fast-path-fallback |
-| [Qwen3.5 fused QK-norm/RoPE/gate ops self-disabled under torch.compile](qwen35-fused-ops-disabled-under-torch-compile.md) | ITL and TTFT up 5–20% with piecewise graphs on Qwen3.5-4B-FP8 | fast-path-fallback |
+| [GPT-OSS linears hit `F.linear`'s extra bias memory copy on SM100+](flinear-bias-copy-sm100.md) | GPT-OSS perf regression on SM100+ (PR title); no number stated; affects `qkv_proj` and `o_proj` | fast-path-fallback |
+| [Qwen3.5 fused QK-norm/RoPE/gate ops self-disabled under torch.compile](qwen35-fused-ops-disabled-under-torch-compile.md) | piecewise CUDA graph TTFT up for long-context serving (PR #17243); no number stated | fast-path-fallback |

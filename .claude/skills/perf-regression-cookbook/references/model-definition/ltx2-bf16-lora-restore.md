@@ -21,26 +21,12 @@ failed_prs: []
 > Part of the [Model definition regression cookbook](index.md) · schema: [case-template](../case-template.md)
 
 - **Provenance:** nvbug `6179761` · commit `5db9414cbeef` · PR #14639 —
-  Save LTX-2 BF16 weights to speed up perf. Closed as verified.
-  **Filed as a functional bug, and that is a misfiling — do not delete this
-  case on the strength of the severity field.** The bug itself reports a perf
-  regression in the LTX2 two-stage case, and its description is a quantified,
-  bisected regression: all 40 matched LTX2 two-stage configs regressed 30–50%
-  (median −31%, worst −51%) between visual-gen development-branch commits
-  4c84e1785 (Apr 27) and a21f7945a (May 13), with one-stage configs
-  unaffected (median +1.0%) and a 3-point comparison separating the cluster
-  move from the framework delta (<old cluster>→<new cluster> at the same SHA = +17%, 16.49 →
-  19.35 s; framework 4c84e→a21f7 on the same <new cluster> = +50%, 19.35 → 29.09 s)
-  across a 106-commit bisect range. This cookbook uses a bug's severity as its
-  perf-vs-functional discriminator, but the rule is "severity, *when it and
-  the bug body agree*": where the bug's own title and body describe a
-  quantified, bisected perf regression, the body wins, and the discrepancy is
-  recorded here so the next audit does not re-litigate it.
+  "[https://nvbugs/6179761][fix] Save LTX-2 BF16 weights to speed up perf".
 - **Symptom:** Slow LTX-2 two-stage visual-gen pipeline perf around the
   stage-2 distilled-LoRA merge/restore: BF16 weights touched by LoRA were
   restored by re-subtracting the deltas after stage 2 instead of a snapshot
-  copy ("the slower on-the-fly subtract path" per the PR). Surfaced via
-  nvbug perf investigation.
+  copy ("the slower on-the-fly subtract path" per the PR). No percentage is
+  stated in the PR.
 - **Root cause:** In `_apply_lora_deltas`
   (`tensorrt_llm/_torch/visual_gen/models/ltx2/pipeline_ltx2_two_stages.py`)
   only quantized (FP8/FP4) parameters were snapshotted into
@@ -48,17 +34,16 @@ failed_prs: []
   restore after stage 2 always went through
   `_subtract_dense_lora_deltas` — a per-parameter delta cast + subtract —
   even when GPU memory could hold a BF16 snapshot.
-- **How introduced:** prior-fix side effect. **The culprit is PR #13244**
-  ("[None][fix] Use bf16 for LTX-2 FP4 stage 2", merged 2026-04-30 to `main`,
-  touching the same `pipeline_ltx2_two_stages.py` this fix touches). The fix PR
-  itself names no regressing commit — the bug does, and that is the correction
-  worth carrying: before #13244 the pipeline snapshotted the original dense
-  weights, and #13244 made stage 2 merge distilled LoRA into the BF16 diffusion
-  transformer and restore by subtracting deltas from **1178 dense transformer
-  parameters on the request path**, which is the ~40–50% cost. #13244 was not
-  careless: the snapshot path clones almost the whole LoRA-touched BF16
-  transformer and raised peak GPU memory from ~72.9 GiB to ~108.3 GiB (+35.4
-  GiB), so it traded latency for memory deliberately. That makes this a
+- **How introduced:** prior-fix side effect. The fix PR names no regressing
+  commit; `git log -S "_subtract_dense_lora_deltas"` on
+  `pipeline_ltx2_two_stages.py` points at PR #13244 ("[None][fix] Use bf16 for
+  LTX-2 FP4 stage 2", merged 2026-04-30 to `main`), whose diff drops the
+  `saved_state[param_name] = param.data.clone()` snapshot for dense weights and
+  adds `_subtract_dense_lora_deltas`, so stage 2 restores dense BF16 weights by
+  subtracting deltas on the request path. That trade was not careless: the
+  snapshot path clones almost the whole LoRA-touched BF16 transformer, and the
+  fix's own diff comment puts baseline BF16 peak at ~75 GiB vs ~108 GiB with
+  snapshots — so it traded latency for memory deliberately. That makes this a
   *tradeoff reintroduced under a gate* rather than a straight regression fix —
   the same shape as `case-warmup-token-cap-revert`, where a protective clamp and
   the perf it cost are the two ends of one decision. Do not "simplify" the

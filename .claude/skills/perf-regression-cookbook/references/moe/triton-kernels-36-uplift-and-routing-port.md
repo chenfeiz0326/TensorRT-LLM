@@ -16,31 +16,27 @@ success_prs: [12102]
 failed_prs: []
 ---
 
-# GPT-OSS Triton MoE slower than vLLM Marlin — the pinned triton_kernels carried the slow kernel
+# Triton MoE perf held back by the pinned triton_kernels — the fix is the 3.6.0 uplift
 
 > Part of the [MoE regression cookbook](index.md) · schema: [case-template](../case-template.md)
 
 - **Provenance:** nvbug `5877121` · commit `e44df9e21a5f` · PR #12102 —
   "[TRTLLM-10820][infra] Update dependencies to align with NGC PyTorch 26.02
-  stack". **The PR names no NVBug**; the link is established from the bug side:
-  per the NVBug, the slow kernel was removed upstream in
-  https://github.com/triton-lang/triton/pull/8483, so Triton 3.6 is fine, and
-  the Triton 3.6 upgrade landed in PR #12102, so 1.3.0rc10 has the new kernels.
-  A PR→bug lookup finds nothing here; only the bug records the resolution.
-- **Symptom:** the TRT-LLM TRITON MoE backend runs 10% slower than vLLM Marlin
-  for gpt-oss-120b on H100. This is a **gap against a competitor at a fixed
-  version**, not a drop against a previous TRT-LLM build — no bisect, no
-  culprit commit in TRT-LLM.
-- **Root cause:** the slowness lived in the **pinned third-party kernel
-  library**, not in TRT-LLM. `triton_kernels` at the pinned 3.5.1 contained a slow
-  routing kernel that upstream Triton deleted in triton-lang/triton#8483; TRT-LLM's
-  Triton MoE backend called it through `routing()` /
-  `routing_from_bitmatrix()`. So no amount of TRT-LLM-side profiling of TRT-LLM
-  code explains the deficit, and the fix is a version move.
+  stack". **The PR names no NVBug**, so a PR→bug lookup finds nothing; the
+  public record is the diff.
+- **Symptom:** a TRITON MoE backend perf deficit with **no culprit commit in
+  TRT-LLM** — a gap, not a drop against a previous TRT-LLM build, so there is
+  nothing to bisect.
+- **Root cause:** the kernels lived in the **pinned third-party kernel
+  library**, not in TRT-LLM. TRT-LLM vendors `triton_kernels` (pinned with
+  `triton==3.5.1` in `requirements.txt`), and its Triton MoE backend called
+  that library's `routing()` / `routing_from_bitmatrix()`. When the kernel
+  library is the bottleneck, no amount of profiling of TRT-LLM code explains
+  the deficit, and the fix is a version move.
 - **How introduced:** `pre-existing-gap` — the backend was never faster; it
   inherited whatever the pinned kernel library shipped. Worth stating plainly
-  because framing the bug as a percentage gap against vLLM invites a bisect that
-  cannot succeed.
+  because framing such a gap as a percentage against another framework invites
+  a bisect that cannot succeed.
 - **Fix mechanism:** the dependency uplift to the NGC PyTorch 26.02 stack —
   torch 2.9.1 → 2.10.0, **triton 3.5.1 → 3.6.0**, TensorRT 10.14.1 → 10.15.1,
   CUDA 13.1.0 → 13.1.1 — plus the API port the uplift forces. triton_kernels 3.6.0

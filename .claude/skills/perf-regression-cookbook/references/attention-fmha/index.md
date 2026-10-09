@@ -18,7 +18,7 @@ inventory is unchanged, compare the host spans instead.
   FMHA dispatcher stops matching (a new tile, a new dtype, a shape outside the
   instantiated set) and a generic kernel runs, correct but slower. The tell is a
   kernel *name* missing from the trace rather than a kernel getting slower.
-  _(Instance: DS-V3.2 FP4 sparse context attention lost its 2-CTA kernel.)_
+  _(Instance: DS-V3.2 sparse context attention lost its 2-CTA kernel.)_
 - **Variant misroute** — support tables are perf policy. Removing a waive or
   widening a capability predicate makes shapes newly *eligible* for a kernel
   that is capable but not fastest for them; re-measure every shape an "unwaive"
@@ -47,6 +47,6 @@ inventory is unchanged, compare the host spans instead.
 |------|------------------|-------|
 | [DSA indexer host overhead and per-step syncs](dsa-indexer-host-overhead.md) | ~65% of per-iteration GPU time in DSA-launched kernels; 2× 12–15 ms `cudaStreamSynchronize` per context step | host-work-added, sync-introduced |
 | [DSA indexer prefill duplicated on every TP rank](dsa-indexer-tp-duplicated-prefill.md) | long-context chunked-prefill TTFT; up to 2.3× TTFT improvement at 150k ISL, TEP8, 8×B200 | redundant-cross-rank-work |
-| [DS-V3.2 FP4 sparse context attention stopped selecting the 2-CTA FMHA kernel](dsmla-sparse-ctx-2cta-fallback.md) | ctx-only throughput 16793 → 14533 tok/s (−13.4%) on a GB200 <cluster> | fast-path-fallback, kernel-selection-regression |
+| [DS-V3.2 sparse context attention stopped selecting the 2-CTA FMHA kernel](dsmla-sparse-ctx-2cta-fallback.md) | DS-V3.2 sparse context-attention throughput drop; 2-CTA `HVPerCta256` kernel missing from the trace | fast-path-fallback, kernel-selection-regression |
 | [FMHA dispatcher queries SM count from the driver every step](fmha-dispatcher-sm-count-query.md) | host overhead on `llama70b_fp4_tp4_512_32-con512_iter10_512_32` | host-work-added |
-| [Unwaiving a "now supported" TRTLLM-Gen MLA decode kernel](trtllmgen-mla-decode-unwaived-slower.md) | `r1_fp4_v2_tep8_mtp3-con32_iter12_1k1k` on GB200: 5641.5 → 5184.46 tok/s (−8.10%) | kernel-selection-regression |
+| [Unwaiving a "now supported" TRTLLM-Gen MLA decode kernel](trtllmgen-mla-decode-unwaived-slower.md) | DeepSeek-R1 MLA decode on Blackwell / FP8 KV: 5642 → 5184 tok/s (−8.1%) | kernel-selection-regression |

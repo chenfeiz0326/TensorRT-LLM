@@ -22,15 +22,9 @@ failed_prs: []
 
 - **Provenance:** nvbug `6422332` · commit `d163e74407cd` · PR #16065 —
   "Keep SSM cache in weights dtype when `mamba_ssm_cache_dtype` is auto".
-- **Symptom:** `output token throughput` on
-  `aggr_upload-qwen3_5_397b_fp4_blackwell-qwen3_5_397b_fp4_dep4_1k1k`
-  (con1024, iter5, B200, stage `DGX_B200-8_GPUs-PyTorch-PerfSanity-Post-Merge-5`)
-  fell from 25435.9 to 20479.4 tok/s — −19.5%, computed from the NVBug's own
-  good/bad perf fields (good `e4aba85f1b65`, bad `fbf102348a85`); the fix diff's
-  docstring independently states "~20% serving throughput loss". Surfaced via
-  post-merge perf-sanity CI. The NVBug notes three sibling stages
-  (`..._dep8_8k1k`, `..._dep8_mtp3_1k1k`, `..._dep8_mtp3_8k1k`) as the same root
-  cause.
+- **Symptom:** Qwen3.5 serving throughput down — the fix diff's docstring
+  states "~20% serving throughput loss" from the fp32 state cache. The PR
+  description states no further number.
 - **Root cause:** `resolve_mamba_ssm_cache_dtype` in
   `tensorrt_llm/_torch/pyexecutor/config_utils.py` accepted **either**
   `mamba_ssm_cache_dtype` **or** `mamba_ssm_dtype`, on the top-level config or
@@ -43,7 +37,7 @@ failed_prs: []
   memory traffic".
 - **How introduced:** PR #14599 · commit `21260bbc0b34`
   ("[TRTLLM-12500][feat] Add support for Qwen3.5 VL MoE (with the MTP fixes)"),
-  identified as the culprit by bisect, per the NVBug. Before it, the
+  per git history — it added `resolve_mamba_ssm_cache_dtype`. Before it, the
   `"auto"` branch of `validate_and_set_mamba_ssm_cache_dtype`
   (`pyexecutor/model_loader.py`) read only the top-level `mamba_ssm_cache_dtype`
   and otherwise fell back to `pretrained_config.torch_dtype`; #14599 centralized

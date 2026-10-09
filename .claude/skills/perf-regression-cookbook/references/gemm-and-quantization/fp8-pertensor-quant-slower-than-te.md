@@ -22,15 +22,9 @@ failed_prs: []
 
 - **Provenance:** nvbug `5846489` · commit `f39e1a8603f9` · PR #11057 —
   Apply TE's FP8 per-tensor quantization.
-- **Symptom:** TRT-LLM's FP8 per-tensor quantization performs slower than
-  Transformer Engine's equivalent kernel on H100 (H100 is named in the PR
-  description, not in the bug). The evidence is a kernel microbenchmark, not
-  an e2e number: nvbug 5846489 tabulates 30 shapes `(1, T, H)` for
-  `T ∈ {128…4096}`, `H ∈ {1024…16384}` and **TE wins every single one** —
-  speedup 0.68×–0.88× (i.e. TRT-LLM 14–46 % slower), e.g. (1, 128, 1024)
-  9.42 µs vs 6.49 µs and (1, 4096, 16384) 300.06 µs vs 229.67 µs
-  (TRT-LLM 1.2.0rc6.post1, TE 2.8.0+40c69e75, torch
-  2.9.0a0+145a3a7bda.nv25.10). No end-to-end delta is stated anywhere.
+- **Symptom:** "TRT-LLM's FP8 per-tensor quantization performs slower than
+  TE's on H100" (PR #11057). This is a kernel-level comparison, not an e2e
+  number: the PR states no magnitude and no end-to-end delta.
 - **Root cause:** the native
   `torch.ops.tensorrt_llm.quantize_e4m3_per_tensor` kernel was
   unconditionally used for FP8 E4M3 per-tensor activation quantization even

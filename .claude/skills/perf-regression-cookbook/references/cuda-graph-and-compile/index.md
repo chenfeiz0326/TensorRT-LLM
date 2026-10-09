@@ -39,8 +39,8 @@ replayed, and which captured bucket did it land in.
 
 | Case | Symptom (signal) | Class |
 |------|------------------|-------|
-| [Changed default CUDA-graph batch-size list regressed a tuned GB200 workload](cudagraph-default-batch-sizes.md) | `gpt_oss_fp4_dep4_1k8k-con2560_iter5_1k8k` output token throughput 87,321 → 80,554 tok/s (−7.8%) | cuda-graph-regression |
-| [mRoPE delta-cache seeding gate keeps text-only decode permanently eager](mrope-graph-gate-text-only-eager.md) | qwen3.5_397b_a17b_fp4 pure-text `gpu_time` 77216.6 → 189899 (+145.93%) on GB200-OCI | cuda-graph-regression, fast-path-fallback |
-| [torch.compile on small MLA context ops costs host time inside piecewise graphs](piecewise-attention-torch-compile-host-overhead.md) | extra host time and TTFT in the MLA context path; ~10% `Inference_Time` on `deepseek_v3_lite`, RTX 6000 SE | host-work-added |
+| [Changed default CUDA-graph batch-size list regressed a tuned GB200 workload](cudagraph-default-batch-sizes.md) | `gpt_oss_fp4_dep4_1k8k-con2560_iter5_1k8k` perf-sanity bar failure after the +64 batch-size default | cuda-graph-regression |
+| [mRoPE delta-cache seeding gate keeps text-only decode permanently eager](mrope-graph-gate-text-only-eager.md) | Qwen3.5 pure-text decode runs eager every step; large throughput / `gpu_time` regression | cuda-graph-regression, fast-path-fallback |
+| [torch.compile on small MLA context ops costs host time inside piecewise graphs](piecewise-attention-torch-compile-host-overhead.md) | extra host time and TTFT in the MLA context path under piecewise CUDA graph | host-work-added |
 | [Piecewise CUDA-graph capture set misses reachable `num_tokens`](piecewise-cudagraph-capture-coverage.md) | ISLs 100/107/121/127 pad to 128 with no graph and run eager | cuda-graph-regression, fast-path-fallback |
-| [Force-appended piecewise-graph capture ceiling makes padding run the 65536-token graph](piecewise-cudagraph-far-ceiling-append.md) | gpt-oss-120b GB300-NVL72 serving ~12% throughput loss, TTFT more than doubled; 51.40 → 44.3–44.7 QPS | cuda-graph-regression |
+| [Force-appended piecewise-graph capture ceiling makes padding run the 65536-token graph](piecewise-cudagraph-far-ceiling-append.md) | gpt-oss-120b GB300 serving ~12% QPS loss, TTFT more than doubled; 51.40 → 44.3–44.7 QPS | cuda-graph-regression |

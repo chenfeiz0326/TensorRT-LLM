@@ -21,9 +21,8 @@ failed_prs: []
 > Part of the [CUDA graph & compile regression cookbook](index.md) · schema: [case-template](../case-template.md)
 
 - **Provenance:** nvbug `5615248` · commit `9c1869b3c0ab` · PR #13574 —
-  "Broader capture of piecewise cudagraph". Split from umbrella nvbug 5615248
-  (a TTFT perf bug also fixed by beam-search and overlap-scheduler PRs, which
-  are separate cases); this case covers only the piecewise-cudagraph
+  "Broader capture of piecewise cudagraph". The PR describes itself as "part
+  of a fix" for nvbug 5615248; this case covers only the piecewise-cudagraph
   capture-set commit.
 - **Symptom:** With `enable_piecewise_cuda_graph=True`, prefill forward
   passes for `num_tokens` values above the largest *actually captured*
@@ -37,18 +36,13 @@ failed_prs: []
   failed to record them; the padding logic then padded prefill chunks to a
   target with no captured graph and fell back to eager.
 - **How introduced:** incomplete coverage of the capture-set bound; the PR
-  names no culprit commit, but the NVBug brackets it to a release: it came in
-  between release/1.1 and release/1.2. With a max sequence length of 128,
-  ISL=107 and OSL=20, release/1.1 captured graphs for `num_tokens=[1,64,107]`
-  and release/1.2 for `num_tokens=[1,2,4,8,16,32,64]` (the runtime logs
-  confirm it), and any sequence with more than 64 input tokens fell through
-  to eager prefill. So the capture list stopped being derived from the
-  reachable shapes and became a fixed power-of-two ladder — the ceiling entry
-  (107) that release/1.1 captured disappeared. The NVBug also records the
-  user-side workaround before the fix: round `max_seq_len` up to the nearest
-  power of two and add 1, so the ladder's top entry becomes reachable. The
-  measured stakes: TTFT under 7 ms for TRT, over 20 ms for PyTorch and
-  ~13 ms for PyTorch + piecewise CUDA graphs on the TinyLlama repro.
+  names no culprit commit. Its before/after table shows the shape: with a
+  power-of-two candidate ladder and `max_seq_len=128`, the top candidate
+  (128) is unreachable, so every ISL in (64, 128) pads to a size with no
+  graph and runs eager. The capture list was not derived from the reachable
+  shapes, so the ceiling entry those ISLs needed never existed. A user-side
+  workaround follows from the mechanism: choose `max_seq_len` so the
+  ladder's top entry is reachable (a power of two plus 1).
 - **Fix mechanism:** New `_filter_piecewise_capture_num_tokens` helper in
   `tensorrt_llm/_torch/pyexecutor/model_engine.py` (a) caps candidates at the
   reachable ceiling and (b) appends the ceiling itself so ISLs in the gap

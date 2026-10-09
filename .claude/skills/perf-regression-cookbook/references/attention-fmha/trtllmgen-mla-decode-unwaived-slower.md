@@ -23,18 +23,11 @@ failed_prs: []
 - **Provenance:** nvbug `6430674` · commit `9fe5d0f735a4` · PR #16167 —
   "Surgical revert of PR #15838's dispatch guard removal: re-add
   MISSING_MLA_GENERATION_KERNELS and restore tokens_per_block".
-- **Symptom:** `output_token_throughput` (higher-is-better) on the
-  aggregated perf-sanity case `r1_fp4_v2_tep8_mtp3-con32_iter12_1k1k`,
-  DeepSeek-R1 FP4 TEP8 MTP3 1k/1k con32 on GB200: good `045705139d`
-  5641.5 tok/s → bad `8c1b230c81` 5184.46 tok/s, −8.10% (3-rep medians,
-  cross-node CV 1.0%; per the NVBug). Single-commit source-built
-  confirmation put the step at −6.73% (parent `b50a10983c` 5712.18 →
-  culprit 5327.78). Surfaced as a `main`-branch perf-sanity CI regression
-  on GB200. The NVBug lists five sibling cases with the same shape
-  signature — GB300, B200 and GB200, DeepSeek-R1-FP4 and
-  Kimi-K2.5-thinking-FP4, aggregated plus disagg `ctx_only` / `gen_only`
-  — and the fix recovered all six, from +4.74% to +37.55% (re-measured on
-  all six cases after the fix, per the NVBug).
+- **Symptom:** `output_token_throughput` (higher-is-better) for DeepSeek-R1
+  MLA decode at `tokens_per_block=32` on Blackwell with FP8 KV: good 5642
+  tok/s → bad 5184 tok/s (−8.1%), 5624 tok/s after the fix (per the fix PR's
+  description, which calls it a ~6.7% regression). The fix PR was validated
+  on the GB200 PerfSanity stages.
 - **Root cause:** the MLA decode support predicate stopped keying on
   `tokens_per_block`, so a shape that had been deliberately excluded
   became eligible. PR #15838 removed the
@@ -70,15 +63,13 @@ failed_prs: []
   `grep -n "SLOWER_MLA_GENERATION_KERNELS\|tokens_per_block" tensorrt_llm/_torch/attention_backend/fmha/flashinfer_trtllm_gen.py`
   — an absent set, or a `_check_mla_generation_support` signature without
   `tokens_per_block`, means every R1-shaped MLA decode is going to
-  TRTLLM-Gen. Confirm the dispatch empirically from the kernel names in
-  the JIT-warmup log: with the guard active, MLA decode runs
-  `fmhaSm(100|103)aKernel_QkvE4m3OBfloat16HQk576HV512…ForGen` (the FMHA
-  fallback); without it only the TRTLLM-Gen path appears (smoke test, per
-  the NVBug). Metric shape is a clean step down
-  that stays down, and it moves the whole shape family at once — every
-  case combining MLA `head_dim_qk=576` / `head_dim_v=512`,
-  `tokens_per_block=32`, `attn_backend=TRTLLM` and
-  `kv_cache_config.dtype=fp8` on Blackwell regresses together.
+  TRTLLM-Gen. Confirm the dispatch empirically by diffing the MLA decode
+  kernel names in a good and a bad trace. Metric shape is a clean step
+  down that stays down, and because the predicate keys on the shape triple
+  it exposes the whole shape family at once — every case combining MLA
+  `head_dim_qk=576` / `head_dim_v=512`, `tokens_per_block=32`,
+  `attn_backend=TRTLLM` and `kv_cache_config.dtype=fp8` on Blackwell
+  takes the same path.
 - **Prevention/guard:** the fix *is* the guard, and that is the weakness —
   a set of blocked shape triples in the dispatcher can be deleted in one
   line with nothing failing. PR #16167 adds no unit test or perf bar

@@ -21,18 +21,16 @@ failed_prs: []
 > Part of the [Sampler regression cookbook](index.md) · schema: [case-template](../case-template.md)
 
 - **Provenance:** nvbug `5708901` · commit `2bc2acda4f0f` · PR #11983 —
-  "[perf] reduce logprobs=0 overhead in TorchSampler". **The bug took two
-  merged fixes, five months apart, and #11983 did not close it.** The
-  follow-on is PR #16958 · commit `7443b7f02ba7` · base `main`, merged
-  2026-07-31 — `[https://nvbugs/5708901][perf] avoid logits copies when
-  computing logprobs` (`sampler/sampler.py` +442/-251, `sampler/ops/vanilla.py`
-  +12/-28, `tests/.../test_logits_logprobs.py` +604/-0, `test_torch_sampler.py`
-  +4/-4), which streamlines the logprobs processing with the main objective of
-  reducing data movement. The bug was closed as resolved on the strength of
-  that work, with the residual conceded: not every TensorRT-LLM feature,
-  logprobs included, is optimized for small models at small batch sizes on
-  powerful GPUs. Cite #11983 for the `logprobs=0` specialization below; cite
-  #16958 for the copy-elimination rework of the same path.
+  "[perf] reduce logprobs=0 overhead in TorchSampler". **Two merged fixes
+  carry this bug id, five months apart.** The follow-on is PR #16958 · commit
+  `7443b7f02ba7` · base `main`, merged 2026-07-31 —
+  `[https://nvbugs/5708901][perf] avoid logits copies when computing logprobs`
+  (`sampler/sampler.py` +442/-251, `sampler/ops/vanilla.py` +12/-28,
+  `tests/.../test_logits_logprobs.py` +604/-0, `test_torch_sampler.py` +4/-4),
+  which avoids snapshotting logits for later logprobs computation and simplifies
+  the processed-logprobs indexing. Cite #11983 for the `logprobs=0`
+  specialization below; cite #16958 for the copy-elimination rework of the same
+  path.
 - **Symptom:** With `logprobs=0` at batch size 1000 (Llama-3.2-1B-Instruct,
   L40S), TorchSampler spent 2.4 ms GPU time and 13.8 ms host time per step on
   sampling — far above `TRTLLMSampler` (5.9 ms host). The fix cut this to

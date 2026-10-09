@@ -4,14 +4,13 @@
 # path but its PR description was too thin to clearly frame it as an
 # instability mitigation as opposed to a functional/accuracy fix or a pure
 # refactor. This is the standing to-classify worklist; a future deep-dive
-# resolves each entry through its NVBug ID or its PR body.
+# resolves each entry through its PR body and diff.
 #
 # Do NOT cite these as precedents. Promote to a case in references/
 # (and remove from here) once the instability nature is confirmed; drop
 # the entry if refuted.
 #
-# Generated from the 2026-07-16 pass over PERF_RELATED_COMMITS.md
-# "Perf-Instability Mitigations".
+# Generated from the 2026-07-16 pass over perf-instability commits on main.
 
 pending:
   - pr: 14609
@@ -32,8 +31,8 @@ pending:
     why_suspected: >
       Framed as stabilizing SSM replay state to avoid `<unk>` collapse — a
       run-to-run *output* variance, not a run-to-run *perf* variance. Excluded
-      from the cookbook so far; keep pending in case a future NVBug thread
-      reveals a perf-throughput knock-on effect from the same code path.
+      from the cookbook so far; keep pending in case a follow-up PR reveals a
+      perf-throughput knock-on effect from the same code path.
 
   - pr: 14509
     date: "2026-05-19"

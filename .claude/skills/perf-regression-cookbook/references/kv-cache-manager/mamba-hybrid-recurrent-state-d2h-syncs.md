@@ -20,45 +20,20 @@ failed_prs: []
 
 > Part of the [KV-cache manager regression cookbook](index.md) · schema: [case-template](../case-template.md)
 
-- **Provenance:** nvbug `6176224` · commit `79ede08f31bb` · PR #14003 —
-  "[None][fix] Fix CppMambaHybridCacheManager functional and perf issues".
-  The PR carries no NVBug tag; the link lives only in nvbug 6176224, which
-  records #14003 as the merged fix.
-  **Two more bug ids cover the same defect**, because the same QA sweep
-  (1.3.0rc13 `b9ce4b69` → 1.3.0rc14 `93cb6518`) also filed two *multi-model*
-  bugs whose `nemotron_nano_12b_v2` rows are this regression: nvbug `6175923`
-  (gpt_oss_20b and nemotron_nano_12b_v2, closed without verification) and
-  nvbug `6144334` (nemotron_nano and gpt_oss models, on H200). Their
-  *other* half — the gpt_oss_20b rows — is an unrelated measurement artifact
-  fixed by PR #14612, recorded as
-  [perf-test gpt-oss-20b MoE backend pin](../measurement-and-test/perf-test-gpt-oss-20b-moe-backend-pin.md).
-  So 6175923 has two fix PRs (#14612 and this one) and neither closes it
-  alone; do not treat #14612 as this bug's fix, or this PR as that bug's fix.
-  The bug records themselves resolve both sweep bugs onto this one: 6144334
-  is marked as a duplicate of 6175923, which is marked as a duplicate of
-  **6176224**, and 6176224 lists both as its duplicates — so the duplicate
-  graph is *affirmative* evidence for listing all three ids here, and it is
-  why the mechanical one-more-hop from the gpt_oss case would land on this
-  defect. (Read both links from the full bug record; a summary view can show
-  them blank.)
-  Two caveats when reading those two ids as this defect: 6144334's
-  `nemotron_nano_12b_v2` rows are **H200**, not B300 (+5.02% to +22.38%
-  Inference Time — the defect is not GPU-specific, the sweep just ran a
-  different fleet), and neither sweep bug's own trail ever names #14003 —
-  6144334 only points at 6175923 as the same issue, and 6175923 defers its
-  nemotron half to the other nemotron bugs. The link from those ids to this
-  fix runs through 6176224, not through their own history.
-- **Symptom:** NVIDIA-Nemotron-Nano-12B-v2 (a mamba-hybrid model) on B300,
-  1.3.0rc14 (`93cb6518`) vs 1.3.0rc13 (`b9ce4b69`); the bug reports
-  Inference Time +23.66% / +7.61%, Seq Throughput -19.13% / -7.08% and
-  Output Token Time +27.02%, surfaced by the QA perf sweep. PR #14003's own
-  perf evidence is an nsys capture on Qwen3.5-A17B-NVFP4 + MTP Eagle
-  one-model + CUDA graphs showing `numGenReq × (1 + max_draft_len)`
-  `cudaMemcpyAsync` + `cudaStreamSynchronize` pairs per iteration inside
-  `_prepare_inputs`, plus a `refresh_blocks` stream sync at the tail of
-  `prepare_resources`. The bug's co-reported KV Cache Size +17.61%
-  (184.83 → 217.38) is **not** part of this defect — per the NVBug it is a
-  change in what the statistic covers, and the baseline should be updated.
+- **Provenance:** nvbugs `6176224` / `6175923` / `6144334` · commit
+  `79ede08f31bb` · PR #14003 — "[None][fix] Fix CppMambaHybridCacheManager
+  functional and perf issues". The PR carries no NVBug tag. Nvbugs
+  `6175923` / `6144334` are also cited by PR #14612, which fixes an unrelated
+  gpt_oss_20b measurement artifact recorded as
+  [perf-test gpt-oss-20b MoE backend pin](../measurement-and-test/perf-test-gpt-oss-20b-moe-backend-pin.md);
+  do not treat #14612 as this defect's fix, or this PR as that one's.
+- **Symptom:** decode-prep host stalls on mamba-hybrid models with prefix
+  caching. PR #14003's perf evidence is an nsys capture on
+  Qwen3.5-A17B-NVFP4 + MTP Eagle one-model + CUDA graphs showing
+  `numGenReq × (1 + max_draft_len)` `cudaMemcpyAsync` +
+  `cudaStreamSynchronize` pairs per iteration inside `_prepare_inputs`, plus a
+  `refresh_blocks` stream sync at the tail of `prepare_resources`. The PR
+  states no end-to-end number.
 - **Root cause:** three host/device sync points on the mamba-hybrid prep
   path. (a) `Mamba2Metadata.prepare` did
   `for i, idx in enumerate(indices): state_indices_cpu[i] = idx`, where
@@ -71,11 +46,8 @@ failed_prs: []
   blockSize}`. (c) `refresh_blocks()` (`syncTransfers`) ran unconditionally
   at the tail of `_prepare_resources`, blocking the remaining prep work
   even when no transfer had been scheduled.
-- **How introduced:** a new feature added the cost. The fix PR names no
-  culprit; per the NVBug, a bisect over the 152 commits in rc13..rc14
-  identifies commit `035de5d18515`, "[TRTLLM-10061][feat] Prefix caching
-  support for mamba hybrid models (Qwen3.5 & Nemotron Super V3) (#12185)",
-  which added the `LinearCacheType.RECURRENT_STATES` allocation path.
+- **How introduced:** a new feature added the cost; the fix PR names no
+  culprit commit.
 - **Fix mechanism:** alias instead of copy, batch instead of loop, defer
   instead of block. `Mamba2Metadata.state_indices` takes a direct
   reference (`self.state_indices = indices`) when the source is on CUDA,

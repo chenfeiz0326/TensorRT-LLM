@@ -31,9 +31,9 @@ investigated as a product regression.
   _(Instances: the wrong MoE backend; the GPT-OSS 20B backend pin; sampler options
   applied to every case; multi-GPU bench under-warmup; the container-mounted
   `$HOME` that poisoned the Triton cache. A sixth — a bar that measured a
-  host-bound low-concurrency regime — was removed on 2026-08-12 because nvbug
-  6192201 is a functional bug; "not host-bound low concurrency" survives in the
-  advice above precisely because it cost a real investigation.)_
+  host-bound low-concurrency regime (nvbug 6192201) — was removed on
+  2026-08-12; "not host-bound low concurrency" survives in the advice above
+  precisely because it cost a real investigation.)_
 - **The server never became ready** — a launcher / IPC / process-bring-up change
   can trip a perf bar with **no compute commit in range**, which is the blind spot
   of the bullet above: the product *did* change, just not anywhere a profile would
@@ -49,10 +49,9 @@ investigated as a product regression.
   _(Instance: multi-GPU bench under-warmup.)_
 
 _Cross-node variance belongs on this checklist too, but its case lives in the
-`communication/` module (`allreduce-host-overhead-small-model-tp.md`): a reported
-9.65% GB300 Llama regression measured 2.42% same-node and the sibling 8B case did
-not reproduce at all. On a shared multi-node cluster, pin every probe in the
-window to ONE node with ≥3 reps before bisecting._
+`communication/` module (`allreduce-host-overhead-small-model-tp.md`). On a
+shared multi-node cluster, pin every probe in the window to ONE node with ≥3 reps
+before bisecting._
 
 ## Cases
 
@@ -60,7 +59,7 @@ window to ONE node with ≥3 reps before bisecting._
 |------|------------------|-------|
 | [IPC HMAC key passed by file descriptor deadlocks the benchmark launcher](ipc-hmac-key-via-fd-breaks-bench.md) | round 2 hangs 30–90 min after `start MpiSession`, all workers at 0% GPU; the bar reports a % drop | measurement-artifact |
 | [trtllm-bench warmed up fewer times than there are ranks](multi-gpu-bench-warmup-too-few.md) | multi-GPU perf-sanity cases read low and unstable; the PR description is empty | measurement-artifact, warmup-jit-gap |
-| [A container-mounted `$HOME` poisoned the Triton cache; the gap never reproduced](nixl-ctx-only-gap-not-reproduced-home-mount.md) | reported `total_token_throughput` −21.86% (8,727 → 6,819); re-measure found no gap and the bug closed not-reproduced | measurement-artifact |
+| [A container-mounted `$HOME` poisoned the Triton cache; the gap never reproduced](nixl-ctx-only-gap-not-reproduced-home-mount.md) | a NIXL disagg `ctx_only` throughput gap; the fix is a CI job-configuration change, not a product change | measurement-artifact |
 | [perf-sanity applied top_k/top_p/temperature to every case](perf-sanity-sampler-options-applied-to-all-cases.md) | broad simultaneous drop across cases sharing only the harness; no per-case percentage stated | measurement-artifact |
-| [An over-broad perf-test pattern pinned GPT-OSS 20B to the TRITON MoE backend](perf-test-gpt-oss-20b-moe-backend-pin.md) | `gpt_oss_20b_fp4-bench-pytorch-float4` rc13 → rc14, 14–376% on B200; product unchanged | measurement-artifact, kernel-selection-regression |
-| [GPT-OSS 120B perf test ran the non-recommended CUTLASS MoE backend](perf-test-wrong-moe-backend.md) | inference time 160057.6 → 176588.6 (+10.33%) 1.1.0 → 1.2.0 on B200; the measurement regressed, not the product | measurement-artifact |
+| [An over-broad perf-test pattern pinned GPT-OSS 20B to the TRITON MoE backend](perf-test-gpt-oss-20b-moe-backend-pin.md) | `gpt_oss_20b_fp4-bench-pytorch-float4` regressed on Blackwell; product unchanged | measurement-artifact, kernel-selection-regression |
+| [GPT-OSS 120B perf test ran the non-recommended CUTLASS MoE backend](perf-test-wrong-moe-backend.md) | GPT-OSS 120B max-throughput perf tests below best; the measurement regressed, not the product | measurement-artifact |

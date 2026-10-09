@@ -23,11 +23,11 @@ failed_prs: []
 - **Provenance:** nvbug `5508267` · commit `f9380581c507` · PR #9280 —
   "[https://nvbugs/5508267][fix] Proper handling of inactive canceled requests".
 - **Symptom:** a **gradual** slowdown of a long-running server under normal
-  operation, root-caused per the NVBug to failed requests: each failed request
+  operation, root-caused per PR #9280 to failed requests: each failed request
   was added to the list of canceled request ids and never removed from it, so
-  the list grew longer with every failed request. Reported on DeepSeek 3.1 as
-  performance degrading over time. **No metric number, model config or
-  hardware is stated in the PR** — do not cite a magnitude for this case.
+  the list grew longer with every failed request. **No metric number, model
+  config or hardware is stated in the PR** — do not cite a magnitude for this
+  case.
 - **Root cause:** `canceled_req_ids` is a plain Python **list**, and the only
   removal path lived inside the `for request in self.active_requests` loop and
   fired only when `_try_cancel_request` succeeded. An id belonging to a request

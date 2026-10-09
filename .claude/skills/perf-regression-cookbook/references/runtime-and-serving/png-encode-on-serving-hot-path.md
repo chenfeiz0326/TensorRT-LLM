@@ -23,21 +23,8 @@ failed_prs: []
 - **Provenance:** nvbug `6064029` · commit `5653803a538e` · PR #12903 —
   Eliminate double PNG encoding in visual gen serving;
   related: nvbug `6064029` · commit `2ea0e6306f52` · PR #13074 —
-  Use fast PNG compression for visual gen serving (same bug, remaining
-  encode overhead after the double-encode was removed). From a customer
-  report; closed as verified.
-  **Filed as a functional bug, and this case is kept anyway.** The bug reports
-  the visual-gen engine time and the end-to-end generation time as very
-  different, which reads like two instruments disagreeing — and that *is*
-  grounds for removal when the disagreement is the whole defect (contrast the
-  Helix context-parallel case removed on 2026-08-12, where the two instruments
-  measured the same quantity and nothing extra was actually spent). It is not
-  the case here: the gap is real host work the user waits through — the logged
-  total pipeline time was 4.66 s while the full end-to-end generation took
-  6.1 s — which the bug traces to `MediaStorage.save_image` +
-  `convert_image_to_bytes` + base64 in `openai_server.py`, and which the fixes
-  cut from 0.97 s to 0.08 s of measured encode. See the ltx2-bf16-lora-restore
-  sibling for the same severity-vs-body judgment written out at length.
+  Use fast PNG compression for visual gen serving (a follow-up to #12903 that
+  addresses the remaining encode overhead, per its own description).
 - **Symptom:** ~1.5 s extra wall time per image generation/edit request for
   image-generating models (FLUX.1, FLUX.2) served via `trtllm-serve`
   (PR #12903); reported wall time was 4.6 s while actual latency was ~6.1 s.

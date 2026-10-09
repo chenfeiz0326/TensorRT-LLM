@@ -26,29 +26,26 @@ failed_prs: [15985]
   DeepGEMM and MegaMoE", which was not filed against this bug but removed the
   first of its two resident-memory terms (its diff moves `_init_deep_gemm_pdl()`
   out of `torch_custom_ops.py` module scope into `_configure_deep_gemm_pdl()`
-  called from `PyTorchModelEngine` init). Two independent unused-memory terms,
-  one capacity threshold, so one case. That DeepGEMM term is the subject of its
-  own case —
+  called from `PyTorchModelEngine` init; #16250 describes itself as fixing the
+  regression "that persisted after the deep_gemm import-context fix
+  (#15632)"). Two independent unused-memory terms, one capacity threshold, so
+  one case. That DeepGEMM term is the subject of its own case —
   [Import-time DeepGEMM PDL init creates a CUDA context](../gemm-and-quantization/deepgemm-pdl-import-time-cuda-context.md),
-  which covers the five-nvbug group `6390244` / `6402018` / `6418453` /
-  `6419078` / `6419139`. This bug was declared a duplicate of that group, but it
-  is cross-linked rather than folded: #15632 removed only the first of its two
-  terms, and the vision-tower term needed #16250.
-- **Failed attempts:** PR #15985 — filed on the sibling bug 6419139 for the
+  which covers nvbugs `6390244` / `6402018` / `6418453` / `6419078` /
+  `6419139`. It is cross-linked rather than folded: #15632 removed only the
+  first of the two terms, and the vision-tower term needed #16250.
+- **Failed attempts:** PR #15985 — titled with nvbug `6419139`, for the
   *same* DeepGEMM import-context term, originally carrying an equivalent
   deferral fix and later rebased to keep only a
   `tests/unittest/others/test_import_side_effects.py` regression guard · closed
   unmerged by its author: "Closing this PR because the same fix was included in
   15632 which has since merged" — so the import-side-effect *guard* never
   landed with it.
-- **Symptom:** ~7.5% Total Token Throughput / Inference Time regression on
-  `qwen3.5_9b-bench-pytorch-bfloat16-maxbs:512-maxnt:2048-input_output_len:500,2000`
-  on L40S, 1.3.0rc19 → rc20 (bug: Inference Time 413361.469 → 444617.063,
-  +7.56%; Total Token Throughput 3096.563 → 2878.882, −7.03%; rerun +7.36% /
-  −6.86%, a stable regression). Surfaced via the QA release-over-release
-  perf comparison. Two tells that this was capacity and not compute: per-step
-  GPU time was unchanged, and only the 500/2000 ISL/OSL variant moved — the
-  1000/1000, 2000/500 and 128/128 siblings stayed flat.
+- **Symptom:** per PR #16250, the qwen3.5_9b L40S perf test at 500/2000
+  ISL/OSL (`qwen3.5_9b-bench-pytorch-bfloat16-maxbs:512-maxnt:2048-input_output_len:500,2000`)
+  lost ~7.5% total token throughput. The tell that this was capacity and not
+  compute: the cost comes from KV-pool size at a capacity threshold, not from
+  slower kernels.
 - **Root cause:** GPU memory held by a component the workload never uses, taken
   out of the KV cache pool, which is sized from *free* GPU memory at startup.
   Since #15249 (dense) and #14599 (MoE), Qwen3.5 checkpoints with architecture
@@ -59,9 +56,7 @@ failed_prs: [15985]
   schedulable 2500-token requests. This workload sits right at a capacity
   threshold — QA history shows 22.55 GiB ↔ ~3.1k tok/s fast regime, ≤22.34 GiB
   ↔ ~2.87k tok/s slow regime — which is why a sub-GiB loss cost ~7.5% on one
-  variant and nothing on its siblings. Full ledger from the bug: rc19 22.55 →
-  rc20 22.08 (−0.47 GiB, DeepGEMM import-time CUDA context, fixed by #15632) →
-  rc21 21.69 (DeepGEMM restored +0.47, vision tower −0.86 from #15249).
+  variant.
 - **How introduced:** #15249 "[TRTLLM-13383][feat] Add support for Qwen3.5 VL
   Dense" (and #14599 for MoE) — a new VLM feature changed which model class the
   *existing* text-only checkpoint resolves to, so text-only benchmarks

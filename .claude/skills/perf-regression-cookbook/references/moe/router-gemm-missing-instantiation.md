@@ -21,16 +21,9 @@ failed_prs: []
 > Part of the [MoE regression cookbook](index.md) · schema: [case-template](../case-template.md)
 
 - **Provenance:** nvbug `6108841` · commit `7d2bed7820ce` · PR #13740 —
-  "add hidden_dim=6144 router GEMM instantiation for GLM-5". **This case is
-  one fixed sub-cause of a still-open bug, not the bug's resolution.**
-  6108841 is a performance bug from a customer report: a 40–50% decode-phase
-  gap between TRT-LLM and TileRT serving GLM-5 at MTP=3, batch size 1. It is
-  still open after 111 days. Per the NVBug, #13740 — which extends the
-  DeepSeek-V3 router kernel to GLM-5's hidden dimension — narrowed the gap to
-  TileRT only a little: from 0.50x to 0.56x TileRT's output throughput. The
-  remaining gap is being chased with a fused `ExpertSelectUpGateSiLU`-style
-  mega-kernel, which is a different problem — so do not read this case as
-  "the GLM-5 decode gap was a missing instantiation".
+  "[https://nvbugs/6108841][fix] add hidden_dim=6144 router GEMM
+  instantiation for GLM-5". The case records the ~1 ms/iter fallback the PR
+  fixes; do not read it as an explanation of any larger GLM-5 decode gap.
 - **Symptom:** ~5.4% / ~1 ms extra per decode iteration on GLM-5 FP8 MTP=3
   BS=1 ISL=1K, B200 TP=8 (numbers from the PR description); the MoE routing
   GEMM ran as `cutlass_80_simt_sgemm_64x64_8x5_tn_align1` — an Ampere SIMT

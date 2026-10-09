@@ -20,38 +20,24 @@ failed_prs: []
 
 > Part of the [Measurement & test instability cookbook](index.md) · schema: [case-template](../case-template.md)
 
-- **Provenance:** nvbug `6162561` (and the sibling filing `6248724` —
-  **not** a duplicate: neither bug carries a duplicate marker, they are two
-  independent QA release-regression filings, three weeks and one GPU
-  generation apart, answered by the same PR) ·
-  commit `26c099f52dda` · PR #14438 — Add
-  `TLLM_SPEC_DECODE_FORCE_NUM_ACCEPTED_TOKENS` in spec-decoding perf
-  test. Note the PR itself names **no** bug — its title is tagged
-  `[None][test]` — so a PR→bug lookup finds nothing; both bugs name
-  #14438 as their fix, which is the only link.
+- **Provenance:** nvbugs `6162561` / `6248724` · commit `26c099f52dda` ·
+  PR #14438 — Add `TLLM_SPEC_DECODE_FORCE_NUM_ACCEPTED_TOKENS` in
+  spec-decoding perf test. Note the PR itself names **no** bug — its title is
+  tagged `[None][test]` — so a PR→bug lookup finds nothing.
   Related to
   [case-fractional-synthetic-acceptance-rates](fractional-synthetic-acceptance-rates.md)
   (#13569) which supplies the fractional-AR primitive this test relies
   on.
-- **Symptom (variance signature):** both bugs were filed as
-  release-to-release **regressions** in the QA Inference Time metric, and
-  both were answered as acceptance-length volatility rather than a mean
-  shift — for nvbug `6248724`, an env var to keep acceptance length from
-  fluctuating is the entire diagnosis. On nvbug `6162561` (GB200-<cluster>,
-  1.3.0rc14 → rc15) the reported rows were +221.21 %
-  (`disagg-e2e-gb200_deepseek-v32-fp4_32k4k_con1_ctx1_dep4_gen1_tep8_eplb0_mtp3_ccb-NIXL`,
-  19234.641 → 61784.270), +51.94 % (the `kimi-k25-thinking-fp4_8k1k_con4`
-  mtp3 case) and +12.57 % (the `deepseek-r1-fp4_1k1k` mtp3 case) against
-  a 5 % regression bar; nvbug `6248724` reported that *same*
-  kimi-k25-thinking mtp3 case at +6.85 % on GB300-<cluster> (4006.460 →
-  4280.710, 1.3.0rc16 → rc17). Two tells that this is variance and not a
-  regression: every attributed row carries `mtp3` (spec decoding on) —
-  the one `mtp0` row in `6162561`'s table was explicitly *not* attributed
-  to this fix — and one case's "regression" reads 51.94 % in one release
-  pair and 6.85 % in another, a spread no code change explains. Each rep
-  drew a different distribution of accepted draft tokens per iter, so the
-  mean throughput moved with no code change and the regression gate
-  flapped.
+- **Symptom (variance signature):** spec-decode perf-sanity throughput moved
+  between reps and releases with no code change, because the number of
+  accepted draft tokens per iteration was itself a per-run draw: each rep drew
+  a different distribution of accepted tokens, so mean throughput moved and
+  the regression gate flapped. The PR describes the fix ("stabilize
+  accepted-token count") rather than the symptom and **states no magnitude,
+  model or platform** — do not attach one. The tell to look for is that the
+  movement is confined to cases with spec decoding on (`mtp>0`) and its sign
+  and size change from one comparison to the next, a spread no code change
+  explains.
 - **Root cause:** the perf test measured spec-decoding throughput
   end-to-end but did not control the acceptance length — the very
   quantity that turns "how many draft tokens per iter" into "how many
@@ -76,18 +62,17 @@ failed_prs: []
   `server_env_var`; disagg adds spec-decode env to `worker_env_var`
   only.
   **The stabilizer itself then broke, and that is part of the record:**
-  turning the env var on across the mtp perf-sanity matrix exposed
-  nvbug `6342840` (a functional bug, so deliberately absent from
-  `nvbugs:` above) — `TLLM_SPEC_DECODE_FORCE_NUM_ACCEPTED_TOKENS`
-  triggered a CUDA illegal memory access in MTP-enabled
-  disaggregated/aggregated perf-sanity on GB200 + GB300. It took
-  PR #15797 (`spec_metadata=None` kwarg on
-  `SpecWorkerBase._apply_force_accepted_tokens`, merged 2026-07-01) to
-  fix, and 37 mtp cases sat waived until PR #15827 un-waived them
-  (18 fixed by #15797 + 19 for CI recheck, merged 2026-07-02). So the
-  cost of pinning an RNG in the harness was a five-week hole in the
-  very matrix it was meant to stabilize — budget for a soak on the
-  forced path before enabling it fleet-wide.
+  turning the env var on across the mtp perf-sanity matrix exposed a CUDA
+  illegal memory access (nvbug `6342840`): per PR #15797, the forced count
+  inflated `num_accepted_tokens` during eager CUDA-graph warmup, where the
+  dummy requests' KV / MTP-pool / draft-token buffers are not populated, so
+  downstream C++ MTP ops indexed out of bounds. PR #15797 (`spec_metadata=None`
+  kwarg on `SpecWorkerBase._apply_force_accepted_tokens`, merged 2026-07-01)
+  fixed it, and PR #15827 (merged 2026-07-02) un-waived the mtp perf-sanity
+  cases that had been waived meanwhile (18 lines it attributes to #15797, the
+  rest for CI recheck). So the cost of pinning an RNG in the harness was a
+  month-long hole in the very matrix it was meant to stabilize — budget for a
+  soak on the forced path before enabling it fleet-wide.
 - **Detection signal:** perf-sanity CI for spec-decode reporting rep-
   to-rep throughput variance uncorrelated with any code change; the
   `d_al` metric moving by more than a few % across reps of the same

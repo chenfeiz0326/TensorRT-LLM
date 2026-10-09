@@ -45,7 +45,8 @@ failed_prs: []
   `[0, 1, 2]`: every request's sparse-attention indices are computed against
   request 0's sequence. The draft tokens are therefore wrong-but-plausible, the
   verify step rejects them, and the loss shows up as *acceptance length* rather
-  than as an error — which is why it read as a model-quality issue for two bugs.
+  than as an error — which is why PR #16925 lists it as two problems (an AL
+  regression at large batch, and an AL gap vs vLLM).
   The batch-size dependence follows directly: with batch 1 the stale map is
   accidentally correct.
 - **How introduced:** `pre-existing-gap`. No culprit commit; the map was built for

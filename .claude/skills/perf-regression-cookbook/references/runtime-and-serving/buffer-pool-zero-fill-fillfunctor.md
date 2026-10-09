@@ -16,17 +16,16 @@ success_prs: [9296]
 failed_prs: []
 ---
 
-# Buffer pool used torch.zeros — FillFunctor kernels took 43 % of a context block
+# Buffer pool used torch.zeros — FillFunctor zero-fill kernels on the context path
 
 > Part of the [Runtime & serving regression cookbook](index.md) · schema: [case-template](../case-template.md)
 
 - **Provenance:** nvbug `5629833` · commit `6dd2fcd7b3f8` · PR #9296 —
   "[https://nvbugs/5629833][fix] Don't fill tensors".
-- **Symptom:** the bug itself *is* the profile reading: 4 big FillFunctor
-  kernels account for 43 % of one ctx block, reported as a probable regression.
-  **The PR body is empty and states no number, model or hardware** — the 43 %
-  figure and the four-kernel count come from the bug, and there is no throughput
-  percentage anywhere. Do not invent one.
+- **Symptom:** large `FillFunctor` zero-fill kernels in the context-phase
+  profile. **The PR body is empty and states no number, model or hardware**, so
+  there is no throughput or share-of-block percentage to record. Do not invent
+  one.
 - **Root cause:** `Buffers.get_buffer()` allocated with
   `torch.zeros((required_memory_size,), device='cuda', dtype=torch.uint8)` on
   **both** of its paths. Every pool miss therefore launched a full device-wide
@@ -36,11 +35,9 @@ failed_prs: []
   and DeepGEMM MoE workspaces, i.e. large allocations on the context path, which
   is why four kernels can dominate a prefill block.
 - **How introduced:** `pre-existing-gap`. `torch.zeros` is the safe default and
-  reads as harmless; nothing regressed it. The bug's own hedged framing (it only
-  *looks* like a regression) is the useful artifact — a large unfamiliar kernel
-  appearing in a profile is routinely reported as a regression when it has been
-  there all along. Confirm a bisect exists before triaging this class as a
-  regression.
+  reads as harmless; nothing regressed it. A large unfamiliar kernel appearing in
+  a profile is routinely reported as a regression when it has been there all
+  along. Confirm a bisect exists before triaging this class as a regression.
 - **Fix mechanism:** `torch.zeros` → `torch.empty`, plus a docstring recording
   that the buffer is intentionally uninitialized (the docstring was added at
   reviewer request — it is the only durable trace of *why* the call must not be

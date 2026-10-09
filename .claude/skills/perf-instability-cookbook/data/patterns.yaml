@@ -85,21 +85,20 @@ patterns:
       touch every path that changes the compiled graph shape.
 
   # RETIRED 2026-08-12 — pattern-warmup-sizing-tradeoff had exactly one instance
-  # (case-warmup-token-cap-protect-autotuner), removed because its bug 5805494 is
-  # a functional bug: an int32 overflow / IMA at the 16384-token warmup shape,
+  # (case-warmup-token-cap-protect-autotuner), removed because its fix PR
+  # #13758 describes an int32 overflow / IMA at the 16384-token warmup shape,
   # i.e. a crash, with no metric varying. The tradeoff itself is real and still
-  # documented — the OTHER end of it, the revert that removed the cap after it
-  # cost >10 % disagg throughput, is a live performance-bug case in the
-  # regression cookbook
-  # (`references/jit-and-warmup/warmup-token-cap-revert.md`, nvbug 6185713).
+  # documented — the OTHER end of it, the revert that removed the cap (PR
+  # #14252), is a live case in the regression cookbook
+  # (`references/jit-and-warmup/warmup-token-cap-revert.md`).
   # Read that before re-introducing any global warmup cap: compare the cap
   # against the `max_num_tokens` / `max_batch_size` live traffic requests, and
-  # prefer per-op protective clamps over one global cap. Re-add here only with a
-  # performance bug on the cap side.
+  # prefer per-op protective clamps over one global cap. Re-add here only if a
+  # public PR shows the cap side varying a metric.
 
   # RETIRED 2026-08-12 — pattern-warmup-cache-key-too-strict had exactly one
-  # instance (case-visual-gen-warmup-cache-key), removed because it was filed
-  # as a functional bug: the observable was a spurious "not warmed up" WARNING
+  # instance (case-visual-gen-warmup-cache-key), removed because, per PR
+  # #12516, the observable was a spurious "not warmed up" WARNING
   # on an image-only FLUX pipeline whose cache-key included `num_frames`, with
   # the recompile only ever "potential" — no measured metric moved. The
   # mechanism is worth knowing (a cache-key must contain only axes the compiled
@@ -138,11 +137,12 @@ patterns:
       multi-turn rounds (pool never releases), and verify preallocation
       timing relative to graph capture.
       Only (a) and (b) have *instability* instances here. Corner cases (b)-as-hang
-      and (c) were filed as nvbugs 5930934 (a crash bug) and 5923949 / 5803120
-      (functional bugs) — a deterministic hang and a load-time segfault, no
-      varying metric — so those two cases were removed on 2026-08-12. The
-      corner cases are still real; they are just not *perf-instability*
-      precedents. Do not re-add them without a performance bug.
+      and (c) were fixed by PRs #11870 (nvbug 5930934) and #12015 (nvbugs
+      5923949 / 5803120), which describe a consistent hang and a load-time
+      segfault, no varying metric — so those two cases were removed on
+      2026-08-12. The corner cases are still real; they are just not
+      *perf-instability* precedents. Do not re-add them without a public PR
+      showing a varying metric.
 
   - id: pattern-platform-conditional-disable
     name: A NCCL / kernel path must be disabled on a specific platform's known bug
@@ -261,11 +261,11 @@ patterns:
       values, because a mean over a prefix looks plausible.
 
   # RETIRED 2026-08-12 — pattern-process-lifetime-cache-binds-env had exactly
-  # one instance (case-single-process-mode-env-cache), and all four nvbugs
-  # behind it (5680911, 5698292, 5710045, 5758449) are functional bugs: the
-  # observable was unit tests silently no-op'ing, with no perf metric anywhere
-  # in the defect. A pattern with zero instances is a match surface that routes
+  # one instance (case-single-process-mode-env-cache), whose fix PR #10730
+  # (nvbugs 5680911, 5698292, 5710045, 5758449) describes a CI test-isolation
+  # fix: the observable was unit tests silently no-op'ing, with no perf metric
+  # anywhere in the defect. A pattern with zero instances is a match surface that routes
   # to nothing, so it is retired rather than left empty. The underlying trap
   # (`os.environ` read inside a `@cache`-decorated body binds the first
   # caller's env) is real and worth knowing — it just is not a perf-instability
-  # precedent. Re-add only with a performance bug behind it.
+  # precedent. Re-add only if a public PR shows it moving a perf metric.

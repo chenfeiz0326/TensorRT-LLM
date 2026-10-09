@@ -25,8 +25,8 @@ failed_prs: []
   case here: [preallocation for autotuning](nccl-symmetric-preallocation-for-autotuning.md)
   (#11326). The other two hardened the same feature against *deterministic*
   failures and so are not instability cases — #11870 (long-context OOM hang,
-  nvbug 5930934, a crash bug) and #12015 (segfault at library load on
-  version mismatch, nvbugs 5923949 / 5803120, functional bugs); both were
+  nvbug 5930934) and #12015 (segfault at library load on version mismatch,
+  nvbugs 5923949 / 5803120); both were
   removed on 2026-08-12. Read their PRs directly if you are chasing a hang or a
   load-time crash on this path.
 - **Symptom (variance signature):** NCCL_SYMMETRIC registered buffers to

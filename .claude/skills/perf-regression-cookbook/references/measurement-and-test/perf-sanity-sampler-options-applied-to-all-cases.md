@@ -21,11 +21,11 @@ failed_prs: []
 > Part of the [Measurement & test regression cookbook](index.md) · schema: [case-template](../case-template.md)
 
 - **Provenance:** nvbug `5666804` · commit `d2327095689a` · PR #9512 —
-  "[https://nvbugs/5666804][fix] only add sampler options for specific tests".
+  "[https://nvbugs/5666804][test] only adding sampler config for limited
+  models".
 - **Symptom:** a broad, simultaneous perf-sanity drop across cases that share
-  nothing but the harness. The bug is filed against the CI bar, not against a
-  model; the diff is the evidence, and there is **no per-case percentage** in
-  either the bug or the PR — do not quote one.
+  nothing but the harness. The diff is the evidence, and there is **no per-case
+  percentage** in the PR — do not quote one.
 - **Root cause:** `get_sampler_options_config()` in the perf-sanity harness
   returned a non-empty dict — `{'top_k': 4, 'top_p': 0.5, 'temperature': 0.5}` —
   for **every** test label, and the command builder appended

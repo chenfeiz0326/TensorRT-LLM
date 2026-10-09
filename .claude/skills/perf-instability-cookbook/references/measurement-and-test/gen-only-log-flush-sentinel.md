@@ -10,7 +10,7 @@ subsystems: [perf-test-harness, disagg-serve]
 introduced_via: [prior-fix-side-effect]
 phase: [decode]
 patterns: [pattern-cross-node-log-flush-race]
-nvbugs: []
+nvbugs: ["6487040", "6487036"]
 commits: ["99bdffc4c39b"]
 success_prs: [16717]
 failed_prs: []
@@ -25,11 +25,8 @@ failed_prs: []
   [gen_only prev_device_step_time race](gen-only-prev-device-step-time-race.md)**
   (`e9402ab59dab` · PR #15108): same log, same race, and the round-1 mitigation
   is what this case supersedes. Read that case first — this one is only
-  intelligible as the correction to its heuristic. The PR title names nvbugs
-  6487040 / 6487036, but **both are functional bugs** (per the bug records,
-  checked 2026-08-12: parser failures on `prev_device_step_time` in the disagg
-  gen log — one a mismatched parse, one the field missing), so they are named
-  in prose only and `nvbugs:` stays empty per this cookbook's admission rule.
+  intelligible as the correction to its heuristic. nvbugs `6487040` /
+  `6487036` (named in the PR title and body).
 - **Symptom (variance signature):** the disagg `gen_only` perf-sanity metric
   `mean_gen_worker_per_iter_device_step_time` was intermittently computed from
   a **truncated** `gen_server_{i}.log` — so the reported number was a mean over

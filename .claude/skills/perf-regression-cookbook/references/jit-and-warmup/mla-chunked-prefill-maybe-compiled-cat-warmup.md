@@ -25,22 +25,12 @@ failed_prs: []
   **Two-branch landing — cite both:** #11743 is the `main` PR (the commit
   above); PR #11744 is the byte-identical cherry-pick to `release/1.2`
   (commit `6c542e98216d`, same title, same two files, both merged
-  2026-03-02). nvbug 5823212 is a `release/1.2` regression, so **#11744 is
-  the PR that actually closed the bug** while #11743 is the one that carries
-  the fix forward on `main`. A PR→bug lookup that only follows `main` reports
-  the wrong number, and a bug→PR lookup that only reads the bug reports the
-  other wrong number — this case exists in both places on purpose.
+  2026-03-02). Both titles carry the same nvbug tag, so a PR→bug lookup that
+  only follows `main` misses the `release/1.2` landing — cite both.
 - **Classification note (why it lives here, not in the instability cookbook):**
   this case was filed under instability `warmup-and-jit` until 2026-08-12 and
-  was moved. 5823212 is a performance bug filed as a regression, with no
-  instability marker, and its result tables show one-directional `gpu_time`
-  deltas on five GPU types from 1.1.0 → 1.2.0 (B200
-  `deepseek_r1_nvfp4…ep:4-gpus:4` 5911.572 → 6810.584 = **15.21 %**,
-  `deepseek_v3_lite_nvfp4…` 9.28 %, `…ep:8-gpus:8` **27.42 %**; B300 16.11 % and
-  8.75 %), measured at `base_run_count: 3` / `target_run_count: 3` per side.
-  Per the NVBug, a bisect points at a specific culprit PR, and the verification
-  reruns recovered every tracked case consistently. That is a reproducible,
-  bisected deficit — not an outlier that sometimes lands in the measurement
+  was moved. The mechanism is a deterministic first-use recompile, which is a
+  reproducible deficit — not an outlier that sometimes lands in the measurement
   window. **The trap this case teaches: a deterministic first-use recompile
   presents *as* a first-iter spike while behaving as a regression.** The
   recompile fires the first time each stride pattern is seen in a process, so
@@ -50,8 +40,8 @@ failed_prs: []
   (regression) or unpredictably (instability) before choosing a cookbook.
 - **Symptom:** on MLA models with chunked prefill, the chunked-prefill MLA
   context path pays a `torch.compile` recompile whenever it meets a new input
-  shape, adding host overhead to the affected iters — surfacing as the
-  `gpu_time` deltas enumerated above.
+  shape, adding host overhead to the affected iters — surfacing as a
+  one-directional `gpu_time` mean shift on perf bars. The PR states no number.
 - **Root cause:** the chunked-prefill MLA context path lets torch.compile
   compile `maybe_compiled_cat` at runtime. The obvious alternative — compiling
   with `dynamic=True` so one graph covers every shape — is ruled out by an
@@ -78,16 +68,10 @@ failed_prs: []
   `num_tokens` dimension so **one** pass generalizes across all
   `num_tokens != 1`; and `num_tokens = 1` is warmed **separately** because
   torch.compile specializes for it and would otherwise still recompile inline.
-  Per the NVBug, the covering argument is that the MLA path has only two
-  stride patterns — `concat(chunked_k_nope, chunked_k_pe)` and
-  `concat(k_nope, k_pe)` — so warming each stride twice covers every case and
-  eliminates recompilation; the residual is a minor regression from longer
-  compiled-kernel launch times (ctx iteration 207 us → 221 us, roughly
-  10 × 14 us ≈ 140 us), accepted as tolerable. So the fix is not a full
-  recovery by construction — and one tracked case
-  (`deepseek_v3_lite_fp8-bench-pytorch-streaming-float8-maxbs:512-maxnt:2048-input_output_len:2000,500`)
-  remained **5.89 %** down after the merge, with that residual handed off to
-  generic host-perf work, so do not cite this fix as closing the whole gap.
+  The covering argument, from the diff: the warmup exercises the two concat
+  layouts the MLA path uses — `concat(chunked_k_nope, chunked_k_pe)` and
+  `concat(k_nope, k_pe)` — at `num_tokens` 2 and 1, so each stride pattern is
+  compiled before serving.
 - **Detection signal:** an nsys torch-compile / inductor compile span
   visible in the first chunked-prefill iter's timeline (not the warmup
   region); `grep -n 'maybe_compiled_cat\|compile_fx' bench.log` and check

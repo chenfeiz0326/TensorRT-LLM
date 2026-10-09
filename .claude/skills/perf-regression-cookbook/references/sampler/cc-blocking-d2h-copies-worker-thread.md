@@ -27,7 +27,7 @@ failed_prs: []
   active"; that is a display artifact, not two PRs.)
 - **Symptom:** throughput loss and GPU idle between decode steps on
   **confidential-compute (CC) enabled** systems only; the same build on a non-CC
-  box is unaffected. Neither the bug nor the PR states a percentage, model or SKU —
+  box is unaffected. The PR states no percentage, model or SKU —
   the discriminator is the platform mode, and that is the number-free fact worth
   carrying.
 - **Root cause:** with CC active, device→host copies must route through a bounce

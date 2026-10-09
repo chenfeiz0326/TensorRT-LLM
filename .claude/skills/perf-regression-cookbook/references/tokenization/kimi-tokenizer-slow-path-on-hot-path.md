@@ -45,8 +45,9 @@ failed_prs: []
   `_K25_SPECIAL_TOKEN_MARKERS` (via `_input_needs_slow_tokenizer`). Pure-text
   prompts keep the fast Rust tokenizer; the NVBug 6182617 accuracy path still
   gets the slow `tokens_trie`. **Superseded at HEAD:** PR #14741 (merged
-  2026-06-09, commit `28845ddf99a3`; filed under NVBug 6227203, a
-  functional bug (a crash), so that id is deliberately not in `nvbugs:`)
+  2026-06-09, commit `28845ddf99a3`; titled under nvbug `6227203`, but the
+  PR describes an `AttributeError` crash fix, not a perf change, so that id is
+  deliberately not in `nvbugs:`)
   deleted the whole shim — #14392's swap *and* #14846's lazy machinery —
   because PR #14456 (transformers 5.5.4) restored correct `AutoTokenizer`
   routing for K2.5, making the forced load byte-identical to the default. So

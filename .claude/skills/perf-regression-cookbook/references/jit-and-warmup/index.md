@@ -26,7 +26,9 @@ requests versus which the warmup grid enumerates — and whether warmup ran at a
   grid — read them as a pair, the second is the first fix's residual hole; the
   warmup token-cap revert; the MLA chunked-prefill `maybe_compiled_cat`; and the
   ModelEngine warmup orchestration gaps. The Helix context-parallel warmup
-  sibling was removed on 2026-08-12 because nvbug 5888410 is a functional bug.)_
+  sibling was removed on 2026-08-12: its fix PR #11460 describes a reporting
+  discrepancy (the first iteration's median TPOT includes cudagraph warmup
+  time), not a perf regression.)_
 - **Host work on the hot path** — a compile *helper* can be the defect rather
   than a missing warmup entry: calling `torch.compile` inside the wrapper means
   every invocation re-enters the compiler, so no amount of warmup helps. Kernel
@@ -42,9 +44,9 @@ requests versus which the warmup grid enumerates — and whether warmup ran at a
 
 | Case | Symptom (signal) | Class |
 |------|------------------|-------|
-| [`maybe_compile` called torch.compile inside the wrapper](maybe-compile-recompiles-every-call.md) | DeepSeek-R1 FP4 and FP8 throughput drops; the PR states no number — take the magnitude from the bugs | host-work-added |
-| [`maybe_compiled_cat` torch.compile stall on the chunked-prefill MLA path](mla-chunked-prefill-maybe-compiled-cat-warmup.md) | `gpu_time` up 9.28–27.42% on five GPU types, 1.1.0 → 1.2.0 | warmup-jit-gap |
-| [ModelEngine warmup gated on torch.compile, missing the (1,0) shape, holding MoE workspaces](model-engine-warmup-orchestration-gaps.md) | GB200 disagg `ctx_only` perf-CI regressions; filed as a refactor, so the PR states no number | warmup-jit-gap, memory-footprint-regression |
-| [trtllm-gen FMHA warmup grid too sparse for a narrow seqlen band (round 2)](trtllmgen-fmha-densify-grid.md) | `r1_fp8_tp8_mtp3_8k1k-con4_iter10_8k1k` output token throughput 996.6 → 824.9; TTFT P99 882 ms → 25 s | warmup-jit-gap |
-| [trtllm-gen FMHA kernels JIT-compile mid-serving (round 1: no warmup)](trtllmgen-fmha-jit-warmup.md) | 7–9 s per kernel compile, up to 8 runtime compilations; Qwen3 `gpu_time` +12.14–32.06% | warmup-jit-gap |
-| [Warmup token cap left large-token shapes untuned at runtime — revert](warmup-token-cap-revert.md) | disagg `ctx_only` output token throughput 88.51 → 75.61 (−14.6%), plus 16 further disagg rows | warmup-jit-gap |
+| [`maybe_compile` called torch.compile inside the wrapper](maybe-compile-recompiles-every-call.md) | flat per-call host overhead across MLA attention, layer norm and DSA; the PR states no number | host-work-added |
+| [`maybe_compiled_cat` torch.compile stall on the chunked-prefill MLA path](mla-chunked-prefill-maybe-compiled-cat-warmup.md) | first-use recompile on the chunked-prefill MLA context path; a mean shift, not variance; the PR states no number | warmup-jit-gap |
+| [ModelEngine warmup gated on torch.compile, missing the (1,0) shape, holding MoE workspaces](model-engine-warmup-orchestration-gaps.md) | filed as a refactor, so the PR states no symptom and no number | warmup-jit-gap, memory-footprint-regression |
+| [trtllm-gen FMHA warmup grid too sparse for a narrow seqlen band (round 2)](trtllmgen-fmha-densify-grid.md) | DSR1 `output_token_throughput` 992 → 615.3 (#15279); TTFT P99 882 ms → 25 s (#15472) | warmup-jit-gap |
+| [trtllm-gen FMHA kernels JIT-compile mid-serving (round 1: no warmup)](trtllmgen-fmha-jit-warmup.md) | 7–9 s per kernel compile, up to 8 runtime compilations (#14851) | warmup-jit-gap |
+| [Warmup token cap left large-token shapes untuned at runtime — revert](warmup-token-cap-revert.md) | shapes between 8192 and `max_num_tokens` untuned; the revert PR states no number | warmup-jit-gap |

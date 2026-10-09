@@ -56,9 +56,9 @@ rather than comparing means.
 Retired from this module on 2026-08-12: **process-lifetime cache binds env** — an
 `os.environ` read inside a `@cache`-decorated body resolves an env-controlled
 configuration once per process, so later tests in the same pytest process cannot
-flip it. The trap is real, but its only instance rested on four
-functional nvbugs (5680911, 5698292, 5710045, 5758449) whose observable
-was L0 unit tests silently no-op'ing, with no perf metric involved. Keep the
+flip it. The trap is real, but its only instance (PR #10730; nvbugs 5680911,
+5698292, 5710045, 5758449) was a CI test-isolation fix whose observable was
+unit tests silently no-op'ing, with no perf metric involved. Keep the
 mechanism in mind when a knob "has no effect" in a directory-level sweep; do not
 expect a case here.
 
@@ -66,7 +66,7 @@ expect a case here.
 
 | Case | Symptom (signal) | Class |
 |------|------------------|-------|
-| [Force accepted-token count in spec-decode perf test](force-num-accepted-tokens-in-spec-perf-test.md) | QA Inference Time rows filed as regressions of +221.21 % / +51.94 % / +12.57 % against a 5 % regression bar, every attributed row `mtp3`; the same case reads +51.94 % in one release pair and +6.85 % in another | metric-with-hidden-rng |
+| [Force accepted-token count in spec-decode perf test](force-num-accepted-tokens-in-spec-perf-test.md) | spec-decode (`mtp>0`) throughput moves rep-to-rep and release-to-release with no code change because the accepted-token count per iter is a per-run draw; the PR states no magnitude | metric-with-hidden-rng |
 | [Fractional synthetic acceptance rates](fractional-synthetic-acceptance-rates.md) | random-input spec-decode benchmarks report meaninglessly-low acceptance rates that move rep-to-rep on the same seed; integer-only forced ARs cannot reach the real operating point | metric-with-hidden-rng |
 | [`--ignore-eos` forced generation past EOS in spec-decode cases](ignore-eos-with-spec-decoding.md) | acceptance rates unstable rep-to-rep at fixed config while throughput at fixed acceptance length is stable — no percentage, model or platform is stated anywhere, do not attach one | metric-with-hidden-rng |
 | [gen_only disagg parser races NFS flush of the gen worker log](gen-only-prev-device-step-time-race.md) | intermittent `RuntimeError: … is missing 'prev_device_step_time' in gen_server_*.log`; the metric is never appended and the gate raises on a good run (round 1) | cross-node-log-flush-race |

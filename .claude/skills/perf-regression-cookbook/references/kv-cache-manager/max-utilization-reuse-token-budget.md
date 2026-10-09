@@ -31,14 +31,10 @@ failed_prs: []
 - **Symptom:** Prefill throughput bottlenecked under MAX_UTILIZATION
   capacity scheduling with KV block reuse: the micro batch scheduler
   admitted "smaller batch sizes than expected" because reuse tokens were
-  credited with "a very conservative estimate" (PR description). Filed
-  from a GPT-OSS-120B B200 Dynamo/TRT-LLM disagg run (3P TP1 + 2D TP2,
-  C=160) whose p95 TTFT was 4.943 s with **4.873 s of it inside the
-  prefill engine** (prefill wait 0.020 s, KV transfer 0.096 s, decode
-  engine 0.078 s), at a 90% prefix-cache hit rate and ~29.8k input
-  tokens/request. A 1p1d C=64 A/B on the fix moved server-reported output
-  throughput `3822.2 → 4358.1` tok/s (+14.0%) and total `452,209 → 512,263`
-  tok/s over a 812.3 s → 695.9 s window — all figures per the NVBug.
+  credited with "a very conservative estimate" (PR #15066). The
+  feature-branch original #15065 spells out the consequence: one request
+  saturates `max_num_tokens` and "context requests serialize to ~1/iter --
+  inflating TTFT at high concurrency". No number is stated.
 - **Root cause:** In `KVCacheManager::getNeededBlocksOneStep`
   (`cpp/tensorrt_llm/batch_manager/kvCacheManager.cpp`), the estimated
   reusable tokens stored via `req.setEstimatedReusableTokens(...)` for the
@@ -61,14 +57,12 @@ failed_prs: []
   `getRemainingBlocksToCompletion`.
 - **Detection signal:** With `capacity_scheduler_policy: MAX_UTILIZATION`
   and block reuse enabled, context batches stay small on cache-hit-heavy
-  workloads even with free KV blocks available. The diagnostic that
-  cracked this bug is a histogram of *requests per context iteration*
-  against the token budget: 82% of ctx-worker iterations ran a single
-  request, while the p90 uncached-token count in those 1-request
-  iterations was only 2,454 against a 20k token budget — i.e. the budget
-  was nowhere near full. Cheap A/B: rerun under GUARANTEED_NO_EVICT, whose
-  estimator already credits all cached blocks (that was the interim
-  workaround on this bug); if the serialization disappears, the
+  workloads even with free KV blocks available. The diagnostic is a
+  histogram of *requests per context iteration* against the token budget:
+  mostly single-request context iterations whose uncached-token count sits
+  far below the token budget mean the budget is not what limits admission.
+  Cheap A/B: rerun under GUARANTEED_NO_EVICT, whose estimator already
+  credits all cached blocks; if the serialization disappears, the
   MAX_UTILIZATION accounting is the difference. Then verify the token
   budget credits all cached blocks with
   `grep -n "setEstimatedReusableTokens" cpp/tensorrt_llm/batch_manager/kvCacheManager.cpp`

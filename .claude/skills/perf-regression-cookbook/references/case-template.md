@@ -9,8 +9,10 @@ re-explanation of how a subsystem works.
 Cases are distilled from NVBug-fix commits on TensorRT-LLM `main`. Every case
 must be traceable: NVBug ID(s), commit hash(es), and PR number(s) are
 mandatory provenance — a case without them cannot exist (there is nothing to
-deep-dive later). Bug *history* deep-dives are out of scope for now; the
-`nvbugs:` IDs are the forward pointer for that future work.
+deep-dive later). This cookbook ships in the public TensorRT-LLM repository:
+NVBugs are cited by ID only, and every other fact comes from a public PR
+description, commit, diff, or GitHub issue. Never copy or paraphrase NVBug
+descriptions, comments, titles, status, severity, or people.
 
 ## Machine-readable frontmatter
 
@@ -80,7 +82,7 @@ The human-readable bullets below remain the case body; frontmatter carries the
 - **Symptom** — what regressed and where it was seen: the metric
   (throughput/TPS, TTFT, ITL/TPOT, memory→achievable batch, startup time),
   the model/config/hardware if the PR names them, and how it surfaced
-  (perf CI bar, QA sweep, customer report, profile).
+  (perf CI bar, QA sweep, profile) when a public source says so.
 - **Root cause** — the actual defect, in one or two lines, as established by
   the PR description/diff. Say what broke, not just where.
 - **How introduced** — the change that caused the regression (commit/PR if the
@@ -100,11 +102,13 @@ The human-readable bullets below remain the case body; frontmatter carries the
 
 ## Anti-fabrication rules
 
-- Every number, knob name, and file path must be traceable to the fix PR's
-  description or diff. If you didn't look it up, don't write it.
-- Quantitative regression sizes ("-15% TPS") appear ONLY when the PR/bug title
-  states them; cite where the number comes from (the PR, or per the NVBug —
-  paraphrase bug text, never quote it).
+- Every number, knob name, and file path must be traceable to a public
+  source: the fix PR's description or diff, a commit message, or a GitHub
+  issue. If you didn't look it up, don't write it.
+- Quantitative regression sizes ("-15% TPS") appear ONLY when a public PR
+  description/title, commit message, or GitHub issue states them; cite which
+  one. Never take a number, bisect result, root cause or verification from an
+  NVBug.
 - Model/hardware applicability comes from the PR text or diff, never inferred
   from resemblance.
 - If the PR description is too thin to fill Root cause + Fix mechanism at
@@ -130,7 +134,7 @@ module index and this schema, then every field as a bold bullet:
 - **Failed attempts:** PR #<n> — <what it tried> · <why it did not land>.
   (omit this bullet when `failed_prs: []`)
 - **Symptom:** <metric that regressed> on <model/config/HW if stated>;
-  surfaced via <perf CI / QA / customer / profile>.
+  surfaced via <perf CI / QA / profile, if a public source says so>.
 - **Root cause:** <the defect>.
 - **How introduced:** <causing change, or "unknown — not stated in the PR">.
 - **Fix mechanism:** <what the fix does>.

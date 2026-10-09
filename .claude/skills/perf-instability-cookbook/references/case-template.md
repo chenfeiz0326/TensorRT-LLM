@@ -10,9 +10,11 @@ it is a variance / spike / hang).
 
 Cases are distilled from perf-instability fix commits on TensorRT-LLM `main`.
 Every case must be traceable: commit hash(es) and PR number(s) are mandatory
-provenance; NVBug ID(s) are recorded when the fix PR names one. Bug *history*
-deep-dives are out of scope for now; the `nvbugs:` IDs are the forward pointer
-for that future work.
+provenance; NVBug ID(s) are recorded, as bare IDs, when the fix PR or commit
+names one. Every fact in a case comes from a public source only: the PR
+description, the commit message, the diff, or a GitHub issue. An NVBug ID is a
+pointer, never a source — do not copy or paraphrase NVBug descriptions,
+comments, titles, status, severity, or people.
 
 ## Machine-readable frontmatter
 
@@ -48,7 +50,7 @@ nvbugs: ["<id>"]                  # ALL NVBug IDs this case covers (empty if non
 commits: ["<12-char hash>"]       # ALL fix commits on main, quoted
 success_prs: [<PR numbers>]       # fix PRs that LANDED (merged on main). Every
                                   # hash in commits: comes from one of these.
-failed_prs: [<PR numbers>]        # fix ATTEMPTS on the same nvbug(s) that did
+failed_prs: [<PR numbers>]        # fix ATTEMPTS at the same mitigation that did
                                   # NOT land: closed unmerged, superseded, or
                                   # rejected on review. [] when there were none.
                                   # An attempt still OPEN is neither — leave it
@@ -62,7 +64,7 @@ The human-readable bullets below remain the case body; frontmatter carries the
 ## Field definitions (body bullets)
 
 - **Provenance** — `commit <12-char hash> · PR #<n>` per fix, with the commit
-  subject; include `nvbug <id>` when the fix PR names one. When an instability
+  subject; include `nvbug <id>` (ID only) when the fix PR or commit names one. When an instability
   was fixed by a series, list the primary first and the follow-ups as
   `related:` lines (fold-vs-new rule: a PR series fixing the *same*
   instability is ONE case).
@@ -74,14 +76,14 @@ The human-readable bullets below remain the case body; frontmatter carries the
   rejection reasons recur for instability specifically and are worth naming
   verbatim when they apply: the attempt **diluted** the variance instead of
   removing it (raised a CV tolerance, inflated `run_count`, widened a timeout —
-  the `PERF_REVIEW.md` anti-patterns), or it **removed the signal** rather than
+  both review anti-patterns), or it **removed the signal** rather than
   the variance (deprecated/waived the case off the perf list). Give the reason
   from the PR's own review thread or closing comment, never a guess. An attempt
   that is still open belongs here only once it closes.
 - **Symptom (variance signature)** — what varied, along which axis (rep-to-rep,
   iter-to-iter, rank-to-rank, first-vs-steady-state), on what
   model/config/hardware if the PR names them, and how it surfaced
-  (perf CI flake, QA sweep, customer report, profile).
+  (perf CI flake, QA sweep, profile) as stated in the PR or issue.
 - **Root cause** — the actual defect, in one or two lines, as established by
   the PR description/diff. Say what broke, not just where. Distinguish *why the
   variance appeared* from *why the mean was slow*.
@@ -110,9 +112,9 @@ The human-readable bullets below remain the case body; frontmatter carries the
 - Every number, knob name, and file path must be traceable to the fix PR's
   description or diff. If you didn't look it up, don't write it.
 - Quantitative variance magnitudes ("+30 s spike on iter 3", "CV drops from
-  8% to 1.2%") appear ONLY when the PR/bug states them; cite where the number
-  comes from — the PR, or just the NVBug for a bug-side number, without
-  quoting the bug or naming which comment or person it came from.
+  8% to 1.2%") appear ONLY when a public PR description, commit, diff, or
+  GitHub issue states them; cite which one. A number that exists only in an
+  NVBug is not recorded.
 - Model/hardware applicability comes from the PR text or diff, never inferred
   from resemblance.
 - If the PR description is too thin to fill Root cause + Fix mechanism at
@@ -138,7 +140,7 @@ the module index and this schema, then every field as a bold bullet:
 - **Failed attempts:** PR #<n> — <what it tried> · <why it did not land>.
   (omit this bullet when `failed_prs: []`)
 - **Symptom (variance signature):** <what varied along which axis> on
-  <model/config/HW if stated>; surfaced via <perf CI / QA / customer / profile>.
+  <model/config/HW if stated>; surfaced via <perf CI / QA / profile>.
 - **Root cause:** <the defect>.
 - **How introduced:** <causing change, or "unknown — not stated in the PR">.
 - **Fix mechanism:** <what the fix does>.

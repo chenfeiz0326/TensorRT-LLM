@@ -91,23 +91,24 @@ the no-match rate is the cookbook's coverage metric for maintainers.
 
 - Source: TensorRT-LLM `main`, NVBug-titled commits
   (`[https://nvbugs/<id>][fix|perf|...]`), window starting 2026-01-10.
-- Current corpus (2026-07-10 commit scan + 2026-08-11 NVBug-first sweep,
+- Current corpus (2026-07-10 commit scan + 2026-08-11 bug-id-first sweep,
   per-case evidence audit 2026-08-12, coverage backfill 2026-08-12): 725
   nvbug-titled commits scanned → 637 candidates classified from PR descriptions
   → **60 confirmed cases** (70 commits, 74 NVBugs) + **25 pending** suspected
   entries.
 - **The last +17 came from asking the corpus what it was missing, not from a
-  new scan.** A cross-check of every performance-severity NVBug with a
-  merged fix PR against the case list produced 24 uncovered bugs, which folded
-  into 17 new regression cases (plus one instability case) — i.e. roughly a
-  quarter of the eligible population was absent *after* two sweeps and an
-  evidence audit had each declared the corpus complete. Both sweeps were
-  discovery-shaped (scan a source, classify what it yields); neither could see
-  a bug it never enumerated. The cheap standing check is therefore the
-  *inverse*: enumerate eligible bugs from NVBugs and diff against
-  `nvbugs:` frontmatter across all cases. Do that before adding another scan.
+  new scan.** A cross-check of every merged fix PR carrying an
+  `nvbugs/<id>` tag against the case list folded the uncovered ones into 17
+  new regression cases (plus one instability case) — i.e. a sizeable share of
+  the eligible population was absent *after* two sweeps and an evidence audit
+  had each declared the corpus complete. Both sweeps were discovery-shaped
+  (scan a source, classify what it yields); neither could see a fix it never
+  enumerated. The cheap standing check is therefore the *inverse*: enumerate
+  merged nvbug-tagged fix PRs and diff their ids against `nvbugs:`
+  frontmatter across all cases. Do that before adding another scan.
   The 2026-08-12 audit had moved the count from 47 to 43: six cases were
-  removed as functional bugs
+  removed because their fix PRs describe a correctness, capacity, measurement or test fix
+  rather than a perf change
   (see `data/removed.yaml` — they are refuted, *not* pending), one
   (`mla-chunked-prefill-maybe-compiled-cat-warmup`) arrived from the
   instability cookbook, and one (`ipc-hmac-key-via-fd-breaks-bench`) was added
@@ -115,33 +116,32 @@ the no-match rate is the cookbook's coverage metric for maintainers.
   in three existing cases before anyone gave it a case of its own, which is the
   cheapest available signal that a case is missing. Every case carries at least one NVBug, and
   every case has a **merged** fix on `main` — a bug whose fix has not landed
-  is not recorded here at all. One umbrella perf bug (5615248) is split
-  into three cases by root cause; conversely one case folds **five** NVBugs
+  is not recorded here at all. One NVBug id (5615248) is split
+  into three cases by root cause; conversely one case folds **five** NVBug ids
   (`deepgemm-pdl-import-time-cuda-context`:
-  6419139+6418453+6419078+6390244+6402018, one import-scope defect reported
-  five times).
-- **Folding has a limit, and it is the bug's own severity.** An earlier
+  6419139+6418453+6419078+6390244+6402018, one import-scope defect and one
+  fix).
+- **Folding has a limit: one root cause and one fix PR.** An earlier
   revision folded the whole trtllm-gen FMHA warmup family into one case
-  (6185446+6193854+6248837+6293823+6315845). That was wrong twice over:
-  6248837 is a functional bug, not a perf bug at all, and the family is two
-  *distinct* defects fixed by two PRs a month apart — no warmup (#14851) and
-  then a too-sparse warmup grid (#15305). It is now
+  (6185446+6193854+6248837+6293823+6315845). That was wrong: the family is
+  two *distinct* defects fixed by two PRs a month apart — no warmup (#14851)
+  and then a too-sparse warmup grid (#15305). It is now
   [round 1](references/jit-and-warmup/trtllmgen-fmha-jit-warmup.md) +
   [round 2](references/jit-and-warmup/trtllmgen-fmha-densify-grid.md),
   cross-linked. Rule: fold only bug ids that share **one root cause and one
-  fix PR**; check the severity on every id before folding, and
-  split when the same failure mode needed a second independent fix — the
-  second fix's *failed attempts* are the transferable knowledge, and folding
-  erases them.
-- The second sweep was **NVBug-first, not commit-first**: NVBugs with
-  performance severity and `regression`/`unstable`/`flutter` in the
-  title, resolved to a fix PR per bug. That is what found the fixes whose
-  commit subject carries no nvbug tag (e.g. `[None][feat]`-titled PRs) and
-  the *failed* attempts, which a commit scan cannot see at all.
+  fix PR**, and split when the same failure mode needed a second independent
+  fix — the second fix's *failed attempts* are the transferable knowledge, and
+  folding erases them.
+- The second sweep was **bug-id-first, not commit-first**: each bug id was
+  resolved to the public PRs referencing it (merged or closed unmerged),
+  classified from their descriptions and diffs. That is
+  what found the fixes whose commit subject carries no nvbug tag (e.g.
+  `[None][feat]`-titled PRs) and the *failed* attempts, which a commit scan
+  cannot see at all.
 
 ### What counts as a "regression" here — three natures
 
-All cases are confirmed **perf-bug fixes**, but NVBug perf bugs come in three
+All cases are confirmed **perf-bug fixes**, but they come in three
 natures. Natures 1 and 2 partition the corpus by the `introduced_via:`
 frontmatter field (39 + 19 + 2 `unknown` = 60); nature 3 is a `regression_class`
 and therefore **overlaps** both — a measurement artifact still got introduced
@@ -152,8 +152,8 @@ somehow, so those 7 cases are counted twice here on purpose.
    `kernel-change`, `config-default-change`, `dep-bump`, `refactor`,
    `incomplete-coverage` (an optimization shipped but a path/dtype/shape it
    missed lands on the slow path).
-2. **Below-expectation perf bugs** (19 cases) — never was fast; NVBug filed
-   because perf was under the bar: `introduced_via: [pre-existing-gap]`.
+2. **Below-expectation perf bugs** (19 cases) — never was fast; the fix PR
+   addresses perf that was under the bar: `introduced_via: [pre-existing-gap]`.
    Not regressions strictly, but the same failure modes recur as regressions,
    so they stay in the match surface.
 3. **Measurement artifacts** (7 cases) — the *measured number* moved without
@@ -197,19 +197,19 @@ be?"), natures 2 and 3 are exactly the precedents to check.
 - Commits whose PR description was too unclear to confirm but which are
   *suspected* perf-regression fixes are parked in **`data/pending.yaml`** —
   the standing to-classify pool. Do not cite pending entries as precedents;
-  they are a deep-dive worklist. One entry (`6070875`) is *inverted* — the
-  regression is fully established and the fix attribution is not; the same
+  they are a deep-dive worklist. One entry (`6070875`) has no public evidence of
+  either a regression or a fix and is kept only as a pointer; the same
   "do not cite" rule applies.
 - **Scan cursors:** commit scan `fd9166c0a7` (origin/main, 2026-07-10);
-  NVBug sweep covers ids above a recent floor at performance severity as of
+  bug-id-first sweep covers bug ids above a recent floor as of
   2026-08-11. Commit sweeps resume from the hash; dedup by grepping it across
-  case `commits:` fields and `data/pending.yaml`. NVBug sweeps resume from the
+  case `commits:` fields and `data/pending.yaml`. Bug-id-first sweeps resume from the
   id floor; dedup by grepping the id across `nvbugs:` and `data/pending.yaml`.
   A sweep will re-encounter bugs it already rejected for having no merged fix,
   which is intended — the right question each time is whether one has landed
-  since. Neither cursor subsumes the other — the NVBug sweep
+  since. Neither cursor subsumes the other — the bug-id-first sweep
   found fixes whose commit subject has no nvbug tag, and the commit scan finds
-  fixes whose bug was never filed as a performance bug.
+  fixes whose id fell outside the sweep's enumeration.
 
 ## Modules — routing table
 
@@ -298,23 +298,24 @@ commit · PR — mandatory), **Symptom**, **Root cause**, **How introduced**,
 ## Principles
 
 1. **Trace, don't recall.** Every number, knob, and path must be traceable to
-   the fix PR's description or diff. Regression sizes appear only when the
-   PR/bug states them, with the source cited.
+   the fix PR's description or diff. Regression sizes appear only when a
+   public PR description or commit states them, with the source cited.
 2. **Never present a precedent as a diagnosis.** A matched case is a
    hypothesis to *check* (via its Detection signal), not a conclusion.
 3. **Patterns are the match surface.** Cases are instances; match on the
    pattern and the canonical signals, not on titles.
 4. **Pending is not precedent.** `data/pending.yaml` entries are unconfirmed;
    promote them to cases only after their nature is established (e.g. a
-   future bug-history deep-dive).
+   future deep-dive into the fix diff and its follow-up PRs).
 5. **Interface facts are as-of their pinned commit.** Knob names and paths in
    a case describe the code at the case's `commits:`; re-verify against your
    checkout before acting.
 
 ## Adding a New Case
 
-1. Confirm it is a perf-regression fix (explicit evidence in PR/bug text —
-   or your own measurement, for locally-found regressions).
+1. Confirm it is a perf-regression fix (explicit evidence in a public PR
+   description, commit, diff or GitHub issue — or your own measurement, for
+   locally-found regressions).
 2. Fold vs. new: a PR series fixing the *same* regression (same nvbug or same
    root cause) is ONE case with `related:` provenance lines. A new case needs
    a new root cause or a new pattern.
@@ -332,9 +333,11 @@ commit · PR — mandatory), **Symptom**, **Root cause**, **How introduced**,
    merged fix** is not recorded at all, however well understood it is. Do not
    add a case for it, and do not invent a parking lot for it — revisit the bug
    when a fix lands.
-5. This cookbook ships in the public TensorRT-LLM repository. Cite an NVBug by
-   id and restate what it established in your own words; never copy its title
-   or comments, or name customers, people, status or priority values.
+5. This cookbook ships in the public TensorRT-LLM repository. Cite NVBugs by
+   ID only; every other fact (symptom numbers, bisect, root cause,
+   verification) must come from a public PR description, commit, diff, or
+   GitHub issue. Never copy or paraphrase NVBug descriptions, comments,
+   titles, status, severity, or people.
 
 ## Relationship to Other Skills
 

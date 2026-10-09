@@ -21,25 +21,19 @@ failed_prs: []
 > Part of the [JIT & warmup instability cookbook](index.md) · schema: [case-template](../case-template.md)
 
 - **Provenance:** commit `8dba04bebfb2` · PR #16178 — Prewarm DeepGEMM
-  paged_mqa_logits_metadata JIT buckets; nvbug 6388787
-  (a performance bug, closed as verified, B200,
-  `deepseek_v3.2_fp4-bench-pytorch-float4-maxbs:512-maxnt:2048-input_output_len:128,128-ep:8-gpus:8`).
-  The NVBug carries the link in both directions: it traces the reported
-  instability to a JIT-compile stall in DeepGEMM's `paged_mqa_logits_metadata`
-  scheduler kernel, reproduces the bucket arithmetic below, and names PR #16178
-  as the fix, since merged. Note PR #16178 itself is titled `[None]`,
-  so a PR→bug lookup finds nothing — the association exists only on the bug side.
-  **Not** part of this case: PR #15961 (commit `0d97e9c76fd3`) is *also*
-  titled against nvbug 6388787, but it reverts an unrelated
-  IPC-HMAC-key-over-fd change (#15654) that silently deadlocked the MPI
-  launch path on the same benchmark — a different defect with no file overlap
-  with #16178, so it is neither a fix nor a failed attempt for this warmup gap.
-  6388787 is therefore a two-root-cause bug; do not fold the two mechanisms.
-  That other mechanism now has its own case —
+  paged_mqa_logits_metadata JIT buckets; nvbug 6388787. Note PR #16178
+  itself is titled `[None]` and its body names no bug, so a PR→bug lookup
+  finds nothing.
+  **Not** part of this case: PR #15961 (commit `0d97e9c76fd3`) is titled
+  against nvbug 6388787, but it reverts an unrelated IPC-HMAC-key-over-fd
+  change (#15654) that, per its PR description, silently deadlocked the MPI
+  launch path of `trtllm-bench` on a `deepseek_v3.2_fp4-bench-pytorch-float4`
+  ep:8 benchmark — a different defect with no file overlap with #16178, so it
+  is neither a fix nor a failed attempt for this warmup gap. Do not fold the
+  two mechanisms. That other mechanism has its own case —
   `perf-regression-cookbook/references/measurement-and-test/ipc-hmac-key-via-fd-breaks-bench.md`
-  — so the two halves of 6388787 are recorded once each, in the cookbook
-  matching their nature: the launch deadlock is deterministic (a regression),
-  the bucket hole varies run to run (this case).
+  — recorded in the cookbook matching its nature: the launch deadlock is
+  deterministic (a regression), the bucket hole varies run to run (this case).
 - **Symptom (variance signature):** DSA models exhibit first-iter throughput
   variance of 2.31× because DeepGEMM's `paged_mqa_logits_metadata` JIT-
   compiles a fresh cubin (spawning `nvcc` → `cicc` → `ptxas`, ~3 s per
@@ -51,13 +45,16 @@ failed_prs: []
   **Why this is instability and not a cold-start regression:** the stall is not
   paid once per process at a fixed point — it fires whenever a *new* uncovered
   bucket is first requested, at whatever iteration traffic happens to produce
-  that `num_generations`. The bug's nsys evidence is exactly that shape: iters
-  **140 / 144 / 149** with `_prepare_inputs` at **3,092 / 3,144 / 3,158 ms**
-  against `_forward_step ≈ 400 ms` — three mid-run spikes, hundreds of iters in,
-  at iteration indices no config predicts. deep_gemm's in-memory `LruCache` is
-  torn down with the process, so the set of stalls reshuffles on every fresh
-  container / rerun. The bug itself was filed as an unstable regression, and a
-  three-rerun check of intra-commit CV on one commit found the perf unstable.
+  that `num_generations`. PR #16178's nsys evidence is exactly that shape:
+  iters **140 / 144 / 149** with `_prepare_inputs` at **3,092 / 3,144 /
+  3,158 ms** against `_forward_step ≈ 400 ms` — three mid-run spikes, hundreds
+  of iters in, at iteration indices no config predicts (`num_generations` 139 /
+  198 / 268 → buckets 160 / 224 / 288). deep_gemm's in-memory `LruCache` is
+  torn down with the process (and `$DG_JIT_CACHE_DIR` defaults to a
+  container-ephemeral path), so the set of stalls reshuffles on every fresh
+  container. The PR's own before/after: rep 1 in a fresh container ran at
+  4,233 vs ~9,750 tok/s for reps 2–3 (2.31×, CV ~40 %) on B300 `ep:8`, and
+  0.99× / CV 0.24 % after the fix.
 - **Root cause:** DSA's `Indexer.prepare_scheduler_metadata`
   (`tensorrt_llm/_torch/attention_backend/sparse/dsa.py`) calls
   `deep_gemm.get_paged_mqa_logits_metadata(context_lens, block_kv, num_sms)`

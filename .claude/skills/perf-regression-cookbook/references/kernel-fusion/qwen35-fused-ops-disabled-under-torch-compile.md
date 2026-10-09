@@ -22,10 +22,9 @@ failed_prs: []
 
 - **Provenance:** nvbug `6545424` · commit `63eb09509706` · PR #17243 — registers
   the fused ops as custom ops and deletes their `is_torch_compiling()` guards.
-- **Symptom:** the NVBug carries the number: with piecewise graphs, ITL and
-  TTFT rise by **5–20 %** on Qwen3.5-4B-FP8. The PR states the same effect
-  qualitatively — "These fallbacks increased piecewise CUDA graph TTFT for
-  long-context serving" — and reports "42 focused H100 tests passed".
+- **Symptom:** the PR states the effect qualitatively — "These fallbacks
+  increased piecewise CUDA graph TTFT for long-context serving" — and reports
+  "42 focused H100 tests passed". No magnitude is stated.
 - **Root cause:** three fused paths — fused QK-norm + RoPE + gate, an in-place
   sigmoid-mul, and a token-major gated RMSNorm — were implemented as **raw Triton
   launchers**, i.e. plain Python functions Dynamo can see into. Under

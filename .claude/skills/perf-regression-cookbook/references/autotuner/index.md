@@ -14,12 +14,11 @@ tuned op.
 - **Host work on the hot path** — every layer of tuning wrapping adds a cache
   lookup per call, and nesting a tuned op inside a tuned op pays for both. The
   kernels do not change, so compare host spans across builds rather than looking
-  for a new kernel; and beware windows where several changes move the number,
-  which read as a staircase of partial recoveries rather than one step.
+  for a new kernel.
   _(Instance: the unified NVFP4 GEMM's two-level nested autotuning.)_
 
 ## Cases
 
 | Case | Symptom (signal) | Class |
 |------|------------------|-------|
-| [Unified NVFP4 GEMM: two-level nested autotuning paid a double cache lookup per call](nested-nvfp4-gemm-autotune-dispatch.md) | MLPerf Llama3.1-405B TP2PP2 on GB200/B200 −8%, 182 → 172 tps/gpu; bisect is a staircase across five commits | host-work-added |
+| [Unified NVFP4 GEMM: two-level nested autotuning paid a double cache lookup per call](nested-nvfp4-gemm-autotune-dispatch.md) | host overhead on the unified NVFP4 GEMM tuning path; flat kernel times, GPU idle between steps | host-work-added |

@@ -3,8 +3,8 @@
 # Every entry here had an NVBug-titled fix commit whose PR description
 # did NOT explicitly establish a perf regression, but whose diff/title
 # plausibly repairs one. This is the standing to-classify worklist:
-# future deep-dives resolve each entry through its nvbug ID (bug
-# history was deliberately not read at scan time).
+# future deep-dives resolve each entry from public sources (the fix diff,
+# follow-up PRs, GitHub issues); the nvbug ID is kept as a pointer only.
 #
 # Do NOT cite these as precedents. Promote to a case in references/
 # (and remove from here) once the perf nature is confirmed; drop the
@@ -28,7 +28,7 @@ pending:
     date: "2026-01-22"
     title: "[https://nvbugs/5322131][feat] Multi-LoRA serving with CUDA Graph (#8279)"
     pattern_hint: "fast-path-fallback"
-    why_suspected: "Explicitly perf-motivated (nvbug-tracked, benchmark table in PR body) and repairs a known perf feature (CUDA Graph unusable with LoRA), but it is a [feat] PR closing a long-standing perf gap rather than fixing a regression from a previously faster state."
+    why_suspected: "Explicitly perf-motivated (benchmark table in PR body) and repairs a known perf feature (CUDA Graph unusable with LoRA), but it is a [feat] PR closing a long-standing perf gap rather than fixing a regression from a previously faster state."
 
   - nvbug: "5829097"
     commit: "9fcc93ea7bbe"
@@ -44,7 +44,7 @@ pending:
     date: "2026-01-25"
     title: "[https://nvbugs/5811697][fix] Fix buffer reuse. (#10716)"
     pattern_hint: "memory-footprint (buffer reuse path never taken)"
-    why_suspected: "Human description empty; diff shows the buffer-reuse fast path was silently skipped whenever reserve_buffer=False, so a fitting cached buffer was never reused and a new one was allocated each time (memory footprint growth / allocation overhead), plus empty_cache on >=1GB frees to curb fragmentation; CodeRabbit-only wording mentions 'improving memory efficiency and reducing fragmentation' — but the nvbug could equally be an OOM-crash (functional)"
+    why_suspected: "Human description empty; diff shows the buffer-reuse fast path was silently skipped whenever reserve_buffer=False, so a fitting cached buffer was never reused and a new one was allocated each time (memory footprint growth / allocation overhead), plus empty_cache on >=1GB frees to curb fragmentation; CodeRabbit-only wording mentions 'improving memory efficiency and reducing fragmentation' — but it could equally be an OOM-crash fix"
 
   - nvbug: "5820874"
     commit: "eae480b7131c"
@@ -52,7 +52,7 @@ pending:
     date: "2026-02-05"
     title: "[https://nvbugs/5820874][fix] Adjust deepgemm tuning buckets to cover larger num_tokens's scope (#11259)"
     pattern_hint: "autotuner-bucket-miss / slow-kernel-selected"
-    why_suspected: "Human description is empty (CodeRabbit-only), but the fix reworks autotuner tuning buckets for DeepGemm SwapAB (tune_max_num_tokens clamped to [4096,8192]) and the changed files are perf-sanity test assets (test_perf_sanity.py, l0_dgx_b200_perf_sanity.yml, deepseek_r1_fp8_blackwell.yaml); the only plausible motive of widening tuning-bucket coverage is speed, and the NVBug is almost certainly a perf-sanity failure"
+    why_suspected: "Human description is empty (CodeRabbit-only), but the fix reworks autotuner tuning buckets for DeepGemm SwapAB (tune_max_num_tokens clamped to [4096,8192]) and the changed files are perf-sanity test assets (test_perf_sanity.py, l0_dgx_b200_perf_sanity.yml, deepseek_r1_fp8_blackwell.yaml); the only plausible motive of widening tuning-bucket coverage is speed"
 
   - nvbug: "5863392"
     commit: "18e611da7730"
@@ -124,7 +124,7 @@ pending:
     date: "2026-05-13"
     title: "[https://nvbugs/6160248][fix] AutoDeploy: fixed broken pattern matching of fuse_rope_into_trtllm_attention transform (#14038)"
     pattern_hint: "fusion-broken (pattern match silently fails, fused op never emitted)"
-    why_suspected: "The fix repairs a broken fusion transform (a perf feature): after commit 6cd23bccdf changed the emitted node pattern, pattern matching failed silently and the fused QKV op was never produced. The PR text never states a measured perf metric or explicitly frames the bug as a slowdown (the nvbug also had a waived test), so it cannot be confirmed, but restoring a silently-disabled fusion is a classic perf-regression repair."
+    why_suspected: "The fix repairs a broken fusion transform (a perf feature): after commit 6cd23bccdf changed the emitted node pattern, pattern matching failed silently and the fused QKV op was never produced. The PR text never states a measured perf metric or explicitly frames the bug as a slowdown, so it cannot be confirmed, but restoring a silently-disabled fusion is a classic perf-regression repair."
 
   - nvbug: "6221841"
     commit: "8c830c90f3fb"
@@ -211,5 +211,5 @@ pending:
     pr: 12470
     date: "2026-04-19"
     title: "[None][feat] Support sparse mqa/gqa attention (#12470)"
-    pattern_hint: "host-work-on-hot-path (FmhaAutoTuner kernel selection re-run per attention call)"
-    why_suspected: "Inverted from the usual pending entry: the REGRESSION is fully established and the FIX is not. The bug is a +31.76% inference-time (gpu_time) regression, reproduced on rerun, on phi_4_multimodal_instruct-bench-pytorch-bfloat16-maxbs:512-maxnt:2048-input_output_len:128,128 on B200, 1.2.0 -> 1.3.0rc11, and, per the NVBug, an nsys comparison establishes the mechanism: GPU kernel times identical between good and bad commits, the whole loss is host-side — every mixed prefill+gen forward step adds +15.5 ms of CPU (22 ms -> 38 ms) because the new FmhaAutoTuner kernel-selection logic runs per attention call (64x per step at 32 layers), while pure-generation iterations are unaffected since CUDA-graph replay bypasses the autotuner. Culprit is 88bbb4de67f8, PR #12612 '[None][feat] Trtllm-gen FMHA JIT support'. The obvious fix is to memoize FmhaAutoTuner::selectKernel(). PR #12470 is credited with the fix, but it is a sparse MQA/GQA feature PR: its diff is sparse-attention flag/parameter renaming plus a new sparse test, it contains no selectKernel memoization (and none exists at HEAD), and it touches a sparse code path this dense bf16 workload never enters. The only conceivable carrier is the opaque libTrtLlmGen.a / libTrtLlmGenFmhaLib.a and trtllm-gen export refresh bundled in the same PR, which cannot be read. So the fix ATTRIBUTION is unconfirmed and the fix MECHANISM is unestablishable; do not cite #12470 as a host-overhead fix. To resolve: diff the trtllm-gen autotuner sources/libs across cf9963f19550."
+    pattern_hint: "unclassified (no public evidence of a mechanism)"
+    why_suspected: "No public evidence of a perf regression or of a perf fix. PR #12470 is a sparse MQA/GQA feature PR; its description does not reference this bug id or state any perf change. Its diff is sparse-attention parameter renaming and dispatch wiring plus new sparse tests, bundled with a refresh of the opaque trtllm-gen FMHA static libraries (libTrtLlmGen.a / libTrtLlmGenFmhaLib.a) and export headers (including FmhaAutoTuner.h), which cannot be read for a mechanism. Kept only as a pointer from the bug id to this PR; do not cite #12470 as a perf fix. To resolve: diff the trtllm-gen FMHA export headers and libraries across cf9963f19550."

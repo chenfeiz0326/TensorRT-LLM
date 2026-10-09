@@ -26,8 +26,8 @@ is not one with a known-bad tactic.
   _(Instances: [graceful fallback foundation](nccl-symmetric-graceful-fallback.md),
   [preallocation for autotuning](nccl-symmetric-preallocation-for-autotuning.md).)_
   Two further corner cases of the same pattern — the long-context OOM *hang*
-  (nvbug 5930934, a crash bug) and the load-time *segfault* on library
-  version mismatch (5923949 / 5803120, functional bugs) — were removed on
+  (PR #11870, nvbug 5930934) and the load-time *segfault* on library
+  version mismatch (PR #12015, nvbugs 5923949 / 5803120) — were removed on
   2026-08-12: both are deterministic failures with no varying metric, so they are
   not instability precedents. If you are chasing a hang or a segfault on this
   path they are real failure modes; read PRs #11870 / #12015 directly.

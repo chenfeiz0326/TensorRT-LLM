@@ -27,8 +27,8 @@ failed_prs: []
   - PR #14499 · commit `8fff9c50fe8f` · base `feat/bench_x`, merged
     2026-05-26 — `[https://nvbugs/6196391][fix] Eliminate O(N^2) memcpy in
     findBlocksInReuseTreeByBlockKey` (`kvCacheManager.cpp`, the only file).
-    **This is the nvbug's fix PR** — the one carrying the actual C++ fix, and
-    the one to cite when discussing this defect. Its commit `8fff9c50fe8f` is
+    **This is the PR carrying the actual C++ fix**, and the one to cite when
+    discussing this defect. Its commit `8fff9c50fe8f` is
     on `feat/bench_x` only and appears nowhere in `main`'s history.
   - PR #14506 · commit `91142da9b45c` · base `feat/bench_x`, merged
     2026-05-27 — `[None][fix] avoid duplicate harmony tokenization & populate

@@ -26,14 +26,12 @@ draft bookkeeping; if it did not, the defect is an ordinary kernel/host cost.
   _(Instance: the DSA MTP stale token-to-request map.)_
 
 _Note, carried from the old index: an EAGLE3 variant-misroute case (`topK=1`
-routed to the dynamic-tree path) was removed on 2026-08-12 because nvbug 6394425
-is a functional bug — the bug's own conclusion was sampling divergence, with the
-~0.6× speed a side effect. It is still worth reading if you are auditing EAGLE3
-path selection, since no confirmed case in this module covers that shape._
+routed to the dynamic-tree path, nvbug 6394425) was removed on 2026-08-12. No
+confirmed case in this module covers EAGLE3 path selection._
 
 ## Cases
 
 | Case | Symptom (signal) | Class |
 |------|------------------|-------|
-| [CuteDSL argmax slower on the MTP draft path — revert](cutedsl-argmax-revert.md) | `v32_fp4_dep4_mtp1_1k1k-con1024` GB200 d_token_throughput −17.52% (11709.65 vs 14196.49), plus −9.54% and −10.50%; regression commit `80dd6e70c689` | kernel-swap-regressed |
+| [CuteDSL argmax slower on the MTP draft path — revert](cutedsl-argmax-revert.md) | spec-decode perf regression after the CuTe-DSL argmax swap (PR #10476); the fix PR states no metric | kernel-swap-regressed |
 | [DSA MTP stale token-to-request map lowers acceptance length](dsa-mtp-stale-token-to-request-map.md) | GLM-5.2 NVFP4 GB200 MTP k=7: acceptance length 2.789 → 3.909 (+40.2%) with the fix at conc 64 / batch 16; normal at batch 1, worse as batch grows | stale-cached-metadata |

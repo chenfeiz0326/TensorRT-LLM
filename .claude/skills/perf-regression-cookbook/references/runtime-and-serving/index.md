@@ -17,9 +17,9 @@ three have different signatures and only the last is visible in a kernel summary
   device profile does not show, because kernel names and durations are unchanged.
   Two shapes here: a custom-op dispatcher tax paid on every op invocation
   (~7 µs × ~2100 calls/step), and an image encode executed on the serving
-  response path. Compare host spans, and note that the dispatch shape only hurts
-  where CUDA graphs are *not* capturing the ops away — which is why it appeared at
-  8 GPUs without graphs and nowhere else.
+  response path. Compare host spans, and note that the dispatch shape hurts most
+  where little other host overhead remains and per-rank GPU work is small — the
+  fix PR measures −5.3 % at 8 GPU vs −1.0 % at 1 GPU.
   _(Instances: the LTX-2 custom-op dispatch tax; PNG encode on the serving hot
   path.)_
 - **Redundant device work** — a generic fill/initialization helper zeroes buffers
@@ -37,7 +37,7 @@ three have different signatures and only the last is visible in a kernel summary
 
 | Case | Symptom (signal) | Class |
 |------|------------------|-------|
-| [Buffer-pool FillFunctor zero-fills buffers that are fully overwritten](buffer-pool-zero-fill-fillfunctor.md) | 4 large FillFunctor kernels account for 43% of one ctx block; the PR body states no throughput number | redundant-device-work |
-| [Custom-op dispatch tax on the LTX-2 hot path](custom-op-dispatch-tax-ltx2.md) | LTX-2 NVFP4 E2E +19.5% (9.95 s → 11.89 s) on 8×B200, only without CUDA graphs; ~7 µs/call × ~2100 calls/step ≈ 11.3 ms/step | host-work-added |
+| [Buffer-pool FillFunctor zero-fills buffers that are fully overwritten](buffer-pool-zero-fill-fillfunctor.md) | large FillFunctor zero-fill kernels on the context path; the PR body states no number | redundant-device-work |
+| [Custom-op dispatch tax on the LTX-2 hot path](custom-op-dispatch-tax-ltx2.md) | LTX-2 NVFP4 host-side tax: ~7 µs/call × ~2100 calls/step ≈ 11.3 ms/step; fix −5.3 % at 8 GPU, −1.0 % at 1 GPU | host-work-added |
 | [NVLE-only device treated as compute-capability, routing to the wrong path](nvle-only-treated-as-cc.md) | structural misroute; the case states no metric, model, hardware or percentage | fast-path-fallback |
 | [PNG encode executed on the serving hot path](png-encode-on-serving-hot-path.md) | ~1.5 s extra per image request; b64_json 12.71 s → 10.78 s (−1.93 s / 15.2%) on FLUX.2-dev/B200 | host-work-added |

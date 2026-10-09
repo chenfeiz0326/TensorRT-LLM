@@ -22,18 +22,13 @@ failed_prs: []
 
 - **Provenance:** nvbugs `5550409`, `5948590` · commit `a69bd2a6fab9` · PR #8708 —
   "[https://nvbugs/5550409][fix] Disable torch compile in piecewise attention
-  part to Avoid host overhead". Two bugs, one root cause, one PR — so one case:
-  5550409 reports a perf regression with torch.compile + piecewise CUDA graph
-  between main and 1.1rc5 on GB200; 5948590 reports `deepseek_v3_lite`
-  `Inference_Time` ~10% worse on release/1.2 than on 1.1.0, on RTX 6000 SE.
+  part to Avoid host overhead".
 - **Symptom:** with piecewise CUDA graph enabled, the MLA context path spends
-  extra **host** time and TTFT rises; the RTX 6000 SE bug reports ~10 %
-  `Inference_Time` against 1.1.0 on `deepseek_v3_lite`. The PR body states the
-  reasoning rather than a number: the piecewise-attention region covers "small
-  ops" whose cost is host-side, so "it has a high possibility that they are
-  host-bound cases. Thus, disabling it would improve TTFT". **The PR quotes no
-  percentage, model config or hardware** — take the magnitude from the two bugs,
-  not from the PR.
+  extra **host** time and TTFT rises. The PR body states the reasoning rather
+  than a number: iterations that run under piecewise CUDA graph mode "has a
+  high possibility that they are host-bound cases. Thus, disabling it would
+  improve TTFT". **The PR quotes no percentage, model config or hardware**, so
+  the magnitude is not public.
 - **Root cause:** `compiled_copy_` and `compiled_cat` in
   `tensorrt_llm/_torch/modules/attention.py` were bare `@torch.compile`
   functions, called from the MLA context paths (`forward_context_default`,
@@ -45,10 +40,9 @@ failed_prs: []
   to offset it. So the cost is not "the kernel got slower"; it is dispatch
   overhead landing on a path whose budget is host-bound by construction.
 - **How introduced:** the piecewise-CUDA-graph execution mode is what makes the
-  compiled wrappers a net loss; the wrappers themselves predate it. Both bugs
-  are branch-comparison regressions (main vs 1.1rc5; release/1.2 vs 1.1.0), i.e.
-  the cost appeared when the piecewise path became the executed one, not when
-  the ops were written.
+  compiled wrappers a net loss; the wrappers themselves predate it, i.e. the
+  cost appeared when the piecewise path became the executed one, not when the
+  ops were written.
 - **Fix mechanism:** make the compile **conditional on not running piecewise**.
   PR #8708 adds an `is_piecewise_running_flag` plus a `maybe_compile` helper in
   `tensorrt_llm/_torch/utils.py`, renames the two ops to `maybe_compiled_copy_` /

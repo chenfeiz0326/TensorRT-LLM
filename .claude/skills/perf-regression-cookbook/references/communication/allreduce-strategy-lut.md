@@ -20,13 +20,13 @@ failed_prs: []
 
 > Part of the [Communication regression cookbook](index.md) · schema: [case-template](../case-template.md)
 
-- **Provenance:** nvbugs `5540494`, `5531839`, `5517023` · commit `fd4311e6a396` ·
-  PR #7870 — replaces the AUTO heuristic with a measured best-strategy table.
+- **Provenance:** nvbugs `5540494` / `5531839` / `5517023` · commit `fd4311e6a396` ·
+  PR #7870 — replaces the AUTO heuristic with a measured best-strategy table
+  (the PR description names `5517023` as a perf gap it fixes).
 - **Symptom:** two directions, both in the PR. Regression: "perf regression due to
   using a one-shot kernel instead of NCCL on A100/H100" — AUTO chose a custom
   kernel that lost to plain NCCL on those SMs. Upside on the fixed path: "3-4 %
-  perf gain in concurrencies of 256 and 512" on Deepseek-R1. Three bugs collapse
-  into one case because they are one root cause and one fix PR.
+  perf gain in concurrencies of 256 and 512" on Deepseek-R1.
 - **Root cause:** AUTO decided from **token count alone** — a single threshold
   (default 128, overridable) plus a `world_size <= 2` special case — and below the
   threshold always returned `MIN_LATENCY`, i.e. the one-shot custom kernel. The
@@ -39,8 +39,8 @@ failed_prs: []
   tuned on and wrong everywhere else — and because it is *deterministic*, it is
   wrong reproducibly, which reads as a product regression rather than a tuning gap.
 - **How introduced:** `pre-existing-gap` — no culprit commit. The heuristic was
-  always this coarse; each bug is a workload that walked into a region where it
-  mispredicts.
+  always this coarse; any workload that walks into a region where it
+  mispredicts regresses.
 - **Fix mechanism:** a generated lookup table,
   `AllReduceBestStrategyTable[sm][tp][fusion_op][hidden_size][num_tokens]`,
   populated from measurement for SM90 and SM100, with **out-of-range ⇒ NCCL** as

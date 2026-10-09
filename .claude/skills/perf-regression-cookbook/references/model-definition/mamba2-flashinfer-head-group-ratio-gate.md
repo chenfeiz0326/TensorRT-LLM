@@ -20,29 +20,18 @@ failed_prs: []
 
 > Part of the [Model definition regression cookbook](index.md) · schema: [case-template](../case-template.md)
 
-- **Provenance:** nvbug `6405747` (dup master) · nvbug `6419042` (closed as
-  a duplicate of 6405747) · commit `1bb55a3e0c47` · PR #16031 —
-  "[TRTLLM-13977][fix] Fix NT3 NVFP4 perf regression in Blackwell".
-  One defect, two QA filings from the same release-to-release sweep on
-  different GPUs; 6419042 was annotated unstable on rerun but reports the
-  same rc19→rc20 mean shift on the same test id.
-- **Symptom:** `nemotron_3_ultra_550b_nvfp4-serve-pytorch-float4-maxbs:256-maxnt:2048-kv_frac:0.8-input_output_len:1024,1024-reqs:640-con:128-ep:4-gpus:4`
-  regressed on Inference Time, Output Token Time and Total Token Throughput
-  between 1.3.0rc19 (`a8c59552`) and 1.3.0rc20 (`c25c23f7`) — **13%–15% on
-  B200** (per 6405747, <cluster>), **+21.9% Inference Time /
-  +21.1% Output Token Time / −17.9% Total Token Throughput on GB200-OCI**
-  (26104.6→31818.4 ms, 26.5→32.08 ms, 10021.4→8223.5 tok/s; per 6405747),
-  and **7.31% Inference Time on GB300** (28174.510→30232.689 ms; per
-  6419042). Surfaced via the QA release-comparison perf sweep, not a
-  customer report. Both bugs closed **as verified on 1.3.0rc21** with every
-  selected case back inside ±5% of the rc19 base (worst delta −3.60% and
-  −3.78%). Note the investigation was blocked for several days by an
-  unrelated defect on the same case: per PR #15961's description, the
-  `nemotron_3_ultra_550b_nvfp4-serve` `/health` endpoint never bound
-  ("did not become ready within 3600s") on *both* baseline and candidate
-  wheels on 2026-07-05, an IPC-HMAC-fd hang fixed separately — a serve-path
-  hang that blocks measurement is not the mean shift being measured. That
-  confounder is now a case in its own right:
+- **Provenance:** nvbugs `6405747` / `6419042` · commit `1bb55a3e0c47` ·
+  PR #16031 — "[TRTLLM-13977][fix] Fix NT3 NVFP4 perf regression in
+  Blackwell".
+- **Symptom:** an NT3 NVFP4 perf regression on Blackwell, per
+  PR #16031's title and description; the decode-side state update is the
+  gated path, so expect the loss in Output-Token-Time / ITL. No percentage is
+  stated in the PR. A separate defect can mask this one on the same model:
+  per PR #15961's description, the `nemotron_3_ultra_550b_nvfp4-serve`
+  `/health` endpoint never bound ("did not become ready within 3600s") on
+  *both* baseline and candidate wheels on 2026-07-05, an IPC-HMAC-fd hang
+  fixed separately — a serve-path hang that blocks measurement is not the
+  mean shift being measured. That confounder is now a case in its own right:
   [IPC HMAC key by fd deadlocks the benchmark launcher](../measurement-and-test/ipc-hmac-key-via-fd-breaks-bench.md)
   — check it first when a window's probes come back null on *both* sides.
 - **Root cause:** `Mamba2Mixer.__init__` in
@@ -60,8 +49,7 @@ failed_prs: []
   computed **post-shard** (`head_group_ratio = self.tp_nheads // self.tp_ngroups`),
   so eligibility depends on the run's TP size, not on the checkpoint alone.
 - **How introduced:** PR #13476 ("[TRTLLM-12242][feat] Add Marlin NVFP4
-  backend for MoE and Linear on Hopper", merged 2026-06-25 — inside the
-  rc19→rc20 window). Its `mamba2_mixer.py` hunk (+16/−14) widened the gate
+  backend for MoE and Linear on Hopper", merged 2026-06-25). Its `mamba2_mixer.py` hunk (+16/−14) widened the gate
   from `self._use_flashinfer = head_dim in supported_head_dims` to a
   three-way conjunction that also requires `head_group_ratio` and `d_state`
   membership. PR #16031's description names #13476 explicitly: "That PR adds
@@ -85,11 +73,7 @@ failed_prs: []
   and evaluate `tp_nheads // tp_ngroups` at the deployed TP size, not from
   the HF config. In an nsys decode trace the flashinfer SSM kernel is
   replaced by the Triton `selective_state_update` kernel. **Mis-triage
-  warning:** 6419042 was first attributed to #15258 (CuteDSL NVFP4 MoE
-  grouped/swiglu GEMM) purely because that commit touched a kernel on this
-  model's path inside the range; dumping the compiled finalize kernel before
-  and after refuted it — the SASS was bit-identical across all 8 autotuner
-  tactic variants. On a MoE + NVFP4 workload the MoE GEMMs are the obvious
+  warning:** on a MoE + NVFP4 workload the MoE GEMMs are the obvious
   suspect and the gated SSM layer is not — check backend-selection log lines
   across the range before bisecting kernel commits.
 - **Prevention/guard:** none added — the PR is a 3-line list edit whose only

@@ -20,9 +20,8 @@ the collective kernels are untouched.
   missing or over-rejects, the op runs on NCCL without failing. Fallbacks must
   log loudly, and a capability guard must test the actual requirement rather
   than a proxy. _(Instance: Nemotron-H MNNVL→NCCL fallback. The AutoDeploy
-  SYMM_MEM→NCCL sibling was removed on 2026-08-12 — nvbug 6221450 is a
-  functional bug, an L0 accuracy assertion, and the slow allreduce was
-  spotted while root-causing that. Same mechanism, no perf filing.)_
+  SYMM_MEM→NCCL sibling was removed on 2026-08-12 — its fix PR #14667 is an
+  accuracy-regression fix, not a perf change. Same mechanism.)_
 - **Strategy heuristic keyed on one dimension** — AUTO selection that decides
   from token count alone is reproducibly wrong wherever the real crossover also
   depends on hidden_size, the attached fusion op or the SM generation. Pin each
@@ -37,8 +36,7 @@ the collective kernels are untouched.
   _(Instance: AllReduce host overhead on small-model TP.)_
 - **Measurement, not product** — on a shared multi-node cluster the headline is
   often cross-node variance. Pin every probe in the window to ONE node with ≥3
-  reps before bisecting: the 9.65% GB300 Llama headline measured 2.42% same-node,
-  and the sibling 8B case did not reproduce at all.
+  reps before bisecting, so cross-node variance is not mistaken for the effect.
   _(Instance: AllReduce host overhead on small-model TP, which is filed under
   both classes for exactly this reason.)_
 
@@ -46,6 +44,6 @@ the collective kernels are untouched.
 
 | Case | Symptom (signal) | Class |
 |------|------------------|-------|
-| [AllReduce host overhead on small-model TP](allreduce-host-overhead-small-model-tp.md) | rc16→rc17 Llama headline −9.65% total token throughput on GB300; 2.42% same-node | host-work-added, measurement-artifact |
+| [AllReduce host overhead on small-model TP](allreduce-host-overhead-small-model-tp.md) | small-model TP total-token-throughput drop (1.926e+04 → 1.785e+04 per PR #15157); host-bound, eager mode only | host-work-added, measurement-artifact |
 | [AllReduce AUTO keyed only on token count](allreduce-strategy-lut.md) | one-shot custom kernel chosen where plain NCCL was faster on A100/H100 | communication-regression, kernel-selection-regression |
 | [Nemotron-H allreduce silently falls back from MNNVL to NCCL](nemotronh-mnnvl-nccl-fallback.md) | every allreduce on the NCCL path on NVL multi-node, "with worse perf"; no delta stated | fast-path-fallback, communication-regression |

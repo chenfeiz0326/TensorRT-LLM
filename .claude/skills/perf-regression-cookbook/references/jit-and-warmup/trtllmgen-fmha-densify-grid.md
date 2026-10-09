@@ -25,14 +25,13 @@ failed_prs: [15279, 15472]
 the warmup pass. This case is the residual coverage hole *in the grid that PR
 added*. The rejected-direction record below is the important half: two
 separate attempts (one closed, one still open) tried to hide the hole by
-re-pinning `mMaxSeqLenKv`, and that direction was rejected (per nvbug 6293823).
+re-pinning `mMaxSeqLenKv`; neither merged, and the merged fix (#15305) widened
+the grid instead.
 
-- **Provenance:** nvbug `6293823` and its NVBugs-marked dupe `6315845` ·
-  commit `7e243650e8dd` · PR #15305 — Densify trtllm-gen fmha warmup grid to
-  catch missing kernels. Both bugs report a B200 DSR1 FP8 aggregated TP8
-  regression on `aggr_upload-deepseek_r1_fp8_blackwell-r1_fp8_tp8_mtp3_8k1k`,
-  both bisected to the same `b4d44d33baea` → `15d06c0923b6` pair (i.e. PR
-  #14851) and both closed by #15305 (per nvbug 6293823).
+- **Provenance:** nvbugs `6293823` / `6315845` · commit `7e243650e8dd` ·
+  PR #15305 — "[https://nvbugs/6248837][fix] Densify trtllm-gen fmha warmup
+  grid to catch missing kernels". The two failed attempts below (#15279,
+  #15472) both name PR #14851 as the change that exposed the hole.
 - **Failed attempts:**
   - PR #15279 (nvbug 6293823) — instead of widening the warmup grid, it
     restored PR #13505's one-line MLA-generation override, re-pinning
@@ -45,15 +44,10 @@ re-pinning `mMaxSeqLenKv`, and that direction was rejected (per nvbug 6293823).
     narrow band #15305 cites — costing ~20 s per mid-benchmark compile and
     38.2 % of `output_token_throughput` (615.3 bad / 992 good / 990.2 after
     fix) · **closed unmerged**, with no reason on the GitHub thread (the only
-    PR comment is CodeRabbit's, no human review); the reason is recorded on
-    nvbug 6293823 instead — #15279 would resolve the issue but is not
-    recommended, because the pin bypasses kernel selection for the specific
-    seqlen and can cause problems on smaller seqlens, which is why #14851
-    removed it in the first place; the bug was then fixed by densifying the
-    grid (#15305).
-  - PR #15472 (nvbug 6315845) — **still OPEN on GitHub, but superseded**: it
-    targets the dupe of a bug already closed by the merged #15305, and it
-    re-treads exactly the direction rejected above, widened to two call
+    PR comment is CodeRabbit's, no human review); the merged fix densified the
+    grid instead (#15305).
+  - PR #15472 (nvbug 6315845) — **still OPEN on GitHub, but superseded** by
+    the merged #15305, and it re-treads exactly the direction rejected above, widened to two call
     sites — pin `mMaxSeqLenKv = max_attention_window_size` in
     `mlaGeneration()` *and* pin
     `(mQkvLayout == PagedKv) ? max_attention_window_size : max_past_kv_length`
@@ -66,19 +60,20 @@ re-pinning `mMaxSeqLenKv`, and that direction was rejected (per nvbug 6293823).
     25 s with TPOT/ITL within 1 %, and `output_token_throughput`
     609 bad / 992.5 good / 988.9 after fix. Authored by repair-bot.
   - **Read the pair as one lesson:** pinning `mMaxSeqLenKv` back to the cache
-    capacity hides the grid hole at the cost of the kernel choice for *small*
-    seqlens. Widening warmup coverage is the accepted direction; re-proposing
+    capacity hides the grid hole by making kernel selection ignore the actual
+    kv-len — in #15279's own words it "collapses runtime kv-len variability
+    onto the single shape" warmup covers — so every seqlen gets the kernel
+    chosen for the maximum. Widening warmup coverage is the accepted direction; re-proposing
     the pin — at one call site or at two — is a re-tread. An agent that
     rediscovers "#14851 removed protective code, restore it" has rediscovered
     #15279, not a new fix.
 - **Symptom:** a kernel variant selected only when seqLenKv lands in the
   narrow band `8193-9316` was absent from #14851's warmup grid, so live
-  traffic hitting that band JIT-compiled inline — ~20 s per compile. On a
-  deterministic perf-sanity case the hole reads as a plain mean shift rather
-  than variance, which is how these two bugs were filed: B200 post-merge
-  `r1_fp8_tp8_mtp3_8k1k-con4_iter10_8k1k`, `output_token_throughput`
-  996.6 → 824.9 (a stated 15 % / −17.23 % gap) and *staying there*, because
-  every rep serves the same uncovered kv-len. In a latency view the same hole
+  traffic hitting that band JIT-compiled inline — ~20 s per compile (#15279).
+  On a deterministic perf-sanity case the hole reads as a plain mean shift
+  rather than variance — DSR1 `output_token_throughput` 992 good → 615.3 bad
+  (#15279) — and *stays there*, because every rep serves the same uncovered
+  kv-len. In a latency view the same hole
   is a TTFT P99 blowup with decode untouched (#15472: 882 ms → 25 s, TPOT
   within 1 %).
 - **Root cause:** the autotuner selects a trtllm-gen kernel from

@@ -42,4 +42,4 @@ kernel ran".
 | [MoE all-to-all rank mask computed on the hot path](moe-a2a-rank-mask-hot-path.md) | GB200 DEP32 gen-worker per-iter device step time 12.88 → 14.43 ms | kernel-swap-regressed, communication-regression |
 | [A doActivation "optimization" side effect made the helper 6× slower](moe-doactivation-optimization-side-effect.md) | doActivation 164,477 ns → 967,955 ns; DS-R1 DEP8 bs=512 B200 TPS 45,741 → 44,597 | kernel-swap-regressed |
 | [Router GEMM missing instantiation falls back to a SIMT SGEMM](router-gemm-missing-instantiation.md) | GLM-5 FP8 MTP=3 B200 TP=8: ~5.4%, ~1 ms extra per decode iteration; `cutlass_80_simt_sgemm_64x64_8x5_tn_align1` in the profile | fast-path-fallback |
-| [triton-kernels pinned below the 3.6.0 uplift + routing port](triton-kernels-36-uplift-and-routing-port.md) | gpt-oss-120b on H100 ~10% slower than vLLM Marlin; triton 3.5.1 → 3.6.0, no culprit commit | dependency-regression |
+| [triton-kernels pinned below the 3.6.0 uplift + routing port](triton-kernels-36-uplift-and-routing-port.md) | TRITON MoE backend perf deficit with no culprit commit; fixed by triton 3.5.1 → 3.6.0 | dependency-regression |

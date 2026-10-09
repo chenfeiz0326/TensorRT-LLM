@@ -53,9 +53,7 @@ failed_prs: [16025]
   post-merge jobs 2825 and 2826 — good commit
   `7c8dde830bac813e23605d47a1d27c92d5437a92`, bad commit
   `045705139d125dbfd0614b369096f7bb5ddcbebf` (numbers from PR #16200's Root
-  cause section). Surfaced as a post-merge perf-CI regression bar; the NVBug
-  also lists a gpt-oss-120b-fp4 gen_only case on GB200 and a
-  `k25_thinking_fp4_tep8_adp_2k1k` case on B200 as similar regressions.
+  cause section). Surfaced as a post-merge perf-CI regression bar.
 - **Root cause:** The WideEP fault-tolerance active-rank mask was implemented
   as *runtime data* rather than a compile-time mode. Two
   `is_rank_active(ptrs.active_rank_mask, target_rank)` checks sat inside
@@ -73,9 +71,8 @@ failed_prs: [16025]
   and still evaluated — off-by-data, not off-by-compilation.
 - **How introduced:** PR #15524 / commit `a0c406ff88`
   ("[TRTLLM-12557][feat] WideEP FT: add AlltoAll watchdog (1a.3 + 1a.4)"), a
-  fault-tolerance feature. Per the NVBug, a manual bisect isolates it to an
-  adjacent good→bad step: `9f689ec7` = 13.055 ms (good) → `a0c406ff` =
-  15.172 ms (bad) on the same case.
+  fault-tolerance feature; #16200 lists it as related, and its diff is the one
+  that adds the two `is_rank_active` checks to `moeAlltoAllKernels.cu`.
 - **Fix mechanism:** Make the mask a compile-time specialization instead of a
   runtime value. `moeA2ADispatchKernel` and `moeA2ACombineKernel` gain a
   `bool ENABLE_RANK_MASK` template parameter, every `is_rank_active` check

@@ -21,8 +21,8 @@ failed_prs: []
 > Part of the [Measurement & test instability cookbook](index.md) · schema: [case-template](../case-template.md)
 
 - **Provenance:** nvbug `6143945` · commit `ac0be4774804` · PR #14347 — gates
-  `--ignore-eos` on whether spec decoding is enabled. **The PR names no bug**; the
-  linkage comes from the bug.
+  `--ignore-eos` on whether spec decoding is enabled. **The PR names no bug**
+  (titled `[None][test]`), so a PR→bug lookup finds nothing.
 - **Symptom:** rep-to-rep variance in a spec-decode perf-sanity case, expressed
   through acceptance length rather than through latency. The only symptom statement
   anywhere is the comment the PR adds to the harness: "`--ignore-eos` must be off
